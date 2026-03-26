@@ -128,6 +128,11 @@ services:
     build:
       context: ./project/aitoearn-backend
       dockerfile: apps/aitoearn-ai/Dockerfile
+<<<<<<< HEAD
+=======
+      args:
+        APP_NAME: aitoearn-ai
+>>>>>>> 74b990a94a619a6faa6cc0157e3efb1b1c898300
     container_name: aitoearn-ai
     restart: unless-stopped
     depends_on:
@@ -195,6 +200,11 @@ services:
     build:
       context: ./project/aitoearn-backend
       dockerfile: apps/aitoearn-server/Dockerfile
+<<<<<<< HEAD
+=======
+      args:
+        APP_NAME: aitoearn-server
+>>>>>>> 74b990a94a619a6faa6cc0157e3efb1b1c898300
     container_name: aitoearn-server
     restart: unless-stopped
     depends_on:

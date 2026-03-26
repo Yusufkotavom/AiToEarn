@@ -6,7 +6,11 @@ WORKDIR /app
 
 COPY . ./
 
+<<<<<<< HEAD
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+=======
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --no-frozen-lockfile
+>>>>>>> 74b990a94a619a6faa6cc0157e3efb1b1c898300
 
 FROM node:24-alpine AS production
 
