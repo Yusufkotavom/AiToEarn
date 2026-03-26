@@ -6,7 +6,8 @@ WORKDIR /app
 
 COPY . ./
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm nx build aitoearn-server
 
 FROM node:24-alpine AS production
 
@@ -17,12 +18,11 @@ RUN apk add --no-cache curl ffmpeg
 WORKDIR /app
 
 COPY assets/ ./
-COPY --from=deps /app/ ./
-
-COPY apps/ ./apps/
-COPY libs/ ./libs/
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/dist ./dist
+RUN node -e "const fs=require('fs');const path=require('path');const libs='dist/libs';if(fs.existsSync(libs)){for(const lib of fs.readdirSync(libs)){const pkgPath=path.join(libs,lib,'package.json');if(!fs.existsSync(pkgPath)) continue;const name=JSON.parse(fs.readFileSync(pkgPath,'utf8')).name;const target=path.join('node_modules',...name.split('/'));fs.rmSync(target,{recursive:true,force:true});fs.mkdirSync(path.dirname(target),{recursive:true});fs.cpSync(path.join(libs,lib),target,{recursive:true});}}"
 
 ENV NODE_ENV=production
 ENV APP_NAME=$APP_NAME
 
-CMD ["sh", "-c", "node apps/${APP_NAME}/src/main.js -c config.js"]
+CMD ["sh", "-c", "node dist/apps/aitoearn-server/src/main.js -c config.js"]
