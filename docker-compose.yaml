@@ -124,8 +124,12 @@ services:
       - aitoearn-network
 
   aitoearn-ai:
-    image: aitoearn/aitoearn-ai:latest
-    pull_policy: always
+    image: aitoearn/aitoearn-ai:local
+    build:
+      context: ./project/aitoearn-backend
+      dockerfile: apps/aitoearn-ai/Dockerfile
+      args:
+        APP_NAME: aitoearn-ai
     container_name: aitoearn-ai
     restart: unless-stopped
     depends_on:
@@ -157,7 +161,7 @@ services:
 
       SERVER_URL: http://aitoearn-server:3002
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","publicEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","cdnEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","accessKeyId":"d34b096790f212a93099aaf3d4260ec3","secretAccessKey":"0e20957c98628c58f9a2bdee04ec3e0979ecef486b02478de0a073a771916a47","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:9000","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
 
       OPENAI_API_KEY: sk-placeholder
       OPENAI_BASE_URL: https://api.openai.com/v1
@@ -189,8 +193,12 @@ services:
       start_period: 60s
 
   aitoearn-server:
-    image: aitoearn/aitoearn-server:latest
-    pull_policy: always
+    image: aitoearn/aitoearn-server:local
+    build:
+      context: ./project/aitoearn-backend
+      dockerfile: apps/aitoearn-server/Dockerfile
+      args:
+        APP_NAME: aitoearn-server
     container_name: aitoearn-server
     restart: unless-stopped
     depends_on:
@@ -224,7 +232,7 @@ services:
       JWT_SECRET: change-this-jwt-secret
       INTERNAL_TOKEN: change-this-secret-token
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","publicEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","cdnEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","accessKeyId":"d34b096790f212a93099aaf3d4260ec3","secretAccessKey":"0e20957c98628c58f9a2bdee04ec3e0979ecef486b02478de0a073a771916a47","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:9000","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
 
       MAIL_USER: ""
       MAIL_PASS: ""
@@ -281,8 +289,10 @@ services:
       start_period: 60s
 
   aitoearn-web:
-    image: aitoearn/aitoearn-web:latest
-    pull_policy: always
+    image: aitoearn/aitoearn-web:local
+    build:
+      context: ./project/aitoearn-web
+      dockerfile: Dockerfile
     container_name: aitoearn-web
     restart: unless-stopped
     depends_on:

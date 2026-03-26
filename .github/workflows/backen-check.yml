@@ -1,8 +1,13 @@
 name: AitoEarn Backend Check
 
 on:
+  push:
+    paths:
+      - 'project/aitoearn-backend/**'
+      - '.github/workflows/backen-check.yml'
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -30,7 +35,9 @@ jobs:
       - name: Check if backend files changed
         id: check-changes
         run: |
-          if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -q "^project/aitoearn-backend/"; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          elif git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -q "^project/aitoearn-backend/"; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -70,4 +77,3 @@ jobs:
         if: steps.check-changes.outputs.changed == 'true'
         working-directory: ${{ env.MONOREPO_DIR }}
         run: pnpm nx run-many --target=build --nxBail --outputStyle=static
-

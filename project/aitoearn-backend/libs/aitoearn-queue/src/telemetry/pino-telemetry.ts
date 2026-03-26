@@ -1,10 +1,23 @@
 import type { ContextManager, Span, SpanOptions, Telemetry, Tracer } from 'bullmq'
+import type { Logger as PinoInstance } from 'pino'
 import { propagationContext } from '@yikart/common'
 import { PinoLogger } from 'nestjs-pino'
 import { storage, Store } from 'nestjs-pino/storage'
+import pino from 'pino'
 
 interface PinoTelemetryContext {
   requestId?: string
+}
+
+let fallbackRootLogger: PinoInstance | undefined
+
+function getRootLogger(): PinoInstance {
+  if (PinoLogger.root) {
+    return PinoLogger.root
+  }
+
+  fallbackRootLogger ??= pino({ name: 'aitoearn-queue' })
+  return fallbackRootLogger
 }
 
 class NoopSpan implements Span<PinoTelemetryContext> {
@@ -39,7 +52,7 @@ class PinoContextManager implements ContextManager<PinoTelemetryContext> {
       bindings['requestId'] = context.requestId
     }
 
-    const logger = PinoLogger.root.child(bindings)
+    const logger = getRootLogger().child(bindings)
     const store = new Store(logger)
     return storage.run(store, fn) as ReturnType<A>
   }
