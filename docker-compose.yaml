@@ -3,7 +3,12 @@ services:
     image: mongo:latest
     container_name: aitoearn-mongodb
     restart: unless-stopped
-    entrypoint: ["bash", "-c", "openssl rand -base64 756 > /data/mongodb-keyfile && chmod 400 /data/mongodb-keyfile && chown mongodb:mongodb /data/mongodb-keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /data/mongodb-keyfile"]
+    entrypoint:
+      [
+        "bash",
+        "-c",
+        "openssl rand -base64 756 > /data/mongodb-keyfile && chmod 400 /data/mongodb-keyfile && chown mongodb:mongodb /data/mongodb-keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /data/mongodb-keyfile --bind_ip_all",
+      ]
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password
@@ -15,19 +20,28 @@ services:
     networks:
       - aitoearn-network
     healthcheck:
-      test: mongosh --quiet --eval "try { rs.status().ok } catch(e) { 0 }"
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh mongodb://admin:password@localhost:27017/admin?authSource=admin --quiet --eval \"db.adminCommand('ping').ok\" | grep 1 >/dev/null 2>&1",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 40s
+      retries: 20
+      start_period: 60s
 
   mongodb-rs-init:
     image: mongo:latest
     container_name: aitoearn-mongodb-rs-init
     depends_on:
       mongodb:
-        condition: service_started
-    entrypoint: ["/bin/sh", "-c", "sleep 5 && mongosh mongodb://admin:password@mongodb:27017/?authSource=admin --eval \"try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}) } catch(e) { if (e.codeName!=='AlreadyInitialized') throw e }\""]
+        condition: service_healthy
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "sleep 5 && mongosh mongodb://admin:password@mongodb:27017/?authSource=admin --eval \"try { rs.initiate({_id:'rs0', members:[{_id:0, host:'mongodb:27017'}]}) } catch(e) { if (e.codeName!=='AlreadyInitialized') throw e }\"",
+      ]
     restart: "no"
     networks:
       - aitoearn-network
@@ -44,7 +58,7 @@ services:
     networks:
       - aitoearn-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a password ping | grep PONG >/dev/null 2>&1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -73,6 +87,22 @@ services:
       retries: 5
       start_period: 30s
 
+  rustfs-init:
+    image: minio/mc:latest
+    container_name: aitoearn-rustfs-init
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    networks:
+      - aitoearn-network
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set rustfs http://rustfs.local:9000 rustfsadmin rustfsadmin;
+      mc mb rustfs/aitoearn --ignore-existing;
+      mc anonymous set download rustfs/aitoearn;
+      exit 0;
+      "
+
   aitoearn-init:
     image: node:lts-alpine
     container_name: aitoearn-init
@@ -93,22 +123,6 @@ services:
     networks:
       - aitoearn-network
 
-  rustfs-init:
-    image: minio/mc:latest
-    container_name: aitoearn-rustfs-init
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    networks:
-      - aitoearn-network
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set rustfs http://rustfs.local:9000 rustfsadmin rustfsadmin;
-      mc mb rustfs/aitoearn --ignore-existing;
-      mc anonymous set download rustfs/aitoearn;
-      exit 0;
-      "
-
   aitoearn-ai:
     image: aitoearn/aitoearn-ai:latest
     pull_policy: always
@@ -121,6 +135,7 @@ services:
         condition: service_healthy
     volumes:
       - ./project/aitoearn-backend/apps/aitoearn-ai/config/config.js:/app/config.js:ro
+      - ./runtime/placeholder-gemini-key.json:/tmp/placeholder-gemini-key.json:ro
     networks:
       - aitoearn-network
     environment:
@@ -142,9 +157,8 @@ services:
 
       SERVER_URL: http://aitoearn-server:3002
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"us-east-1","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://127.0.0.1:9000","cdnEndpoint":"http://127.0.0.1:8080/oss","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","publicEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","cdnEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","accessKeyId":"d34b096790f212a93099aaf3d4260ec3","secretAccessKey":"0e20957c98628c58f9a2bdee04ec3e0979ecef486b02478de0a073a771916a47","forcePathStyle":true}'
 
-      # AI Services
       OPENAI_API_KEY: sk-placeholder
       OPENAI_BASE_URL: https://api.openai.com/v1
       ANTHROPIC_API_KEY: sk-placeholder
@@ -156,11 +170,19 @@ services:
       GROK_API_KEY: ""
       AICSO_API_KEY: ""
       AICSO_BASE_URL: ""
-      GEMINI_KEY_PAIRS: '[]'
+
+      GEMINI_KEY_PAIRS: '[{"apiKey":"AIzaSyCEmNQKFyBwXVOBEoPu2Vs0BI0vux0l_ik","projectId":"859795037475","keyFile":"/tmp/placeholder-gemini-key.json","bucket":"placeholder-bucket"}]'
       GEMINI_LOCATION: us-central1
       AI_PROXY_URL: ""
+
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3010/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3010/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -186,7 +208,7 @@ services:
       NODE_ENV: production
       APP_ENV: production
       APP_NAME: aitoearn-server
-      APP_DOMAIN: localhost
+      APP_DOMAIN: api.piiblog.net
 
       MONGODB_HOST: mongodb
       MONGODB_PORT: 27017
@@ -202,12 +224,11 @@ services:
       JWT_SECRET: change-this-jwt-secret
       INTERNAL_TOKEN: change-this-secret-token
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"us-east-1","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://127.0.0.1:9000","cdnEndpoint":"http://127.0.0.1:8080/oss","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","publicEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","cdnEndpoint":"https://b2ce9bfa4a1c529524d2aaf6898e8c30.r2.cloudflarestorage.com","accessKeyId":"d34b096790f212a93099aaf3d4260ec3","secretAccessKey":"0e20957c98628c58f9a2bdee04ec3e0979ecef486b02478de0a073a771916a47","forcePathStyle":true}'
 
       MAIL_USER: ""
       MAIL_PASS: ""
 
-      # Third-party OAuth
       BILIBILI_CLIENT_ID: ""
       BILIBILI_CLIENT_SECRET: ""
       GOOGLE_CLIENT_ID: ""
@@ -229,26 +250,31 @@ services:
       INSTAGRAM_CLIENT_SECRET: ""
       LINKEDIN_CLIENT_ID: ""
       LINKEDIN_CLIENT_SECRET: ""
-      YOUTUBE_CLIENT_ID: ""
-      YOUTUBE_CLIENT_SECRET: ""
+      YOUTUBE_CLIENT_ID: "-.apps.googleusercontent.com"
+      YOUTUBE_CLIENT_SECRET: "--"
       WXPLAT_APP_ID: ""
       WXPLAT_APP_SECRET: ""
       WXPLAT_ENCODING_AES_KEY: ""
       DOYIN_CLIENT_ID: ""
       DOYIN_CLIENT_SECRET: ""
 
-      # Aliyun SMS
       ALI_SMS_ACCESS_KEY_ID: ""
       ALI_SMS_ACCESS_KEY_SECRET: ""
       ALI_SMS_SIGN_NAME: ""
       ALI_SMS_TEMPLATE_CODE: ""
 
-      # Relay (optional)
       RELAY_SERVER_URL: https://aitoearn.ai/api
-      RELAY_API_KEY: ""
-      RELAY_CALLBACK_URL: http://127.0.0.1:8080/api/plat/relay-callback
+      RELAY_API_KEY: "ak_jS16FdJ0DCwQOupfWBQUQN8HuuOIe5gCJZ1CEqmWWuVc0wd5"
+      RELAY_CALLBACK_URL: https://api.piiblog.net/api/plat/relay-callback
+
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3002/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

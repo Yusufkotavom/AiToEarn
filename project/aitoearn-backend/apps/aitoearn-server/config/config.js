@@ -286,6 +286,11 @@ module.exports = {
   credits: {
     registerBonus: 50,
   },
+  newApi: {
+    enable: false,
+    baseUrl: '',
+    token: '',
+  },
 
   // 中转服务（可选）
   ...(RELAY_SERVER_URL && {
