@@ -6,7 +6,8 @@ WORKDIR /app
 
 COPY . ./
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm nx build aitoearn-ai
 
 FROM node:24-alpine AS production
 
@@ -17,12 +18,10 @@ RUN apk add --no-cache curl ffmpeg
 WORKDIR /app
 
 COPY assets/ ./
-COPY --from=deps /app/ ./
-
-COPY apps/ ./apps/
-COPY libs/ ./libs/
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/dist ./dist
 
 ENV NODE_ENV=production
 ENV APP_NAME=$APP_NAME
 
-CMD ["sh", "-c", "echo 'nameserver 8.8.8.8' >> /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && node apps/${APP_NAME}/src/main.js -c config.js"]
+CMD ["sh", "-c", "echo 'nameserver 8.8.8.8' >> /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && node dist/apps/aitoearn-ai/src/main.js -c config.js"]
