@@ -1,6 +1,10 @@
 name: AitoEarn Backend Check
 
 on:
+  push:
+    paths:
+      - 'project/aitoearn-backend/**'
+      - '.github/workflows/backen-check.yml'
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -31,7 +35,7 @@ jobs:
       - name: Check if backend files changed
         id: check-changes
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           elif git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -q "^project/aitoearn-backend/"; then
             echo "changed=true" >> $GITHUB_OUTPUT

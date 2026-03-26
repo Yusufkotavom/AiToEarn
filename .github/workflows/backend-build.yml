@@ -46,7 +46,7 @@ permissions:
   actions: write
 
 env:
-  DOCKER_HUB_USERNAME: aitoearn
+  DOCKER_HUB_USERNAME: ${{ vars.DOCKER_HUB_USERNAME || github.repository_owner }}
   NX_NO_CLOUD: true
   MONOREPO_DIR: project/aitoearn-backend
 

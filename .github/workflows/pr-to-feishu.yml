@@ -7,7 +7,6 @@ on:
 
 jobs:
   notify:
-    if: github.repository_owner == 'yikart'
     uses: yikart/.github/.github/workflows/feishu-notify-template.yml@main
     secrets: inherit
     with:

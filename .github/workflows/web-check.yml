@@ -1,6 +1,10 @@
 name: AitoEarn Web Check
 
 on:
+  push:
+    paths:
+      - 'project/aitoearn-web/**'
+      - '.github/workflows/web-check.yml'
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -30,7 +34,7 @@ jobs:
       - name: Check if web files changed
         id: check-changes
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           elif git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -q "^project/aitoearn-web/"; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -72,4 +76,3 @@ jobs:
         if: steps.check-changes.outputs.changed == 'true'
         working-directory: ${{ env.MONOREPO_DIR }}
         run: pnpm build
-
