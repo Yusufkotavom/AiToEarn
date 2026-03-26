@@ -4,9 +4,9 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY deps/ ./
+COPY . ./
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
 FROM node:24-alpine AS production
 
