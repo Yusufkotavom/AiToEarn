@@ -31,7 +31,7 @@ export interface CreateVideoResult {
 @Injectable()
 export class GeminiService {
   private readonly logger = new Logger(GeminiService.name)
-  private readonly genAiClient: GoogleGenAI
+  private readonly genAiClient: GoogleGenAI | null
 
   constructor(
     private readonly config: GeminiConfig,
@@ -41,15 +41,21 @@ export class GeminiService {
       ? `${config.proxyUrl}/${config.baseUrl}`
       : config.baseUrl
 
-    this.genAiClient = new GoogleGenAI({
-      apiKey: config.apiKey,
-      httpOptions: { baseUrl },
-    })
+    this.genAiClient = config.apiKey
+      ? new GoogleGenAI({
+          apiKey: config.apiKey,
+          httpOptions: { baseUrl },
+        })
+      : null
   }
 
   async generateImage(request: GeminiImageGenerateRequest): Promise<GeminiImageGenerateResponse> {
     const model = request.model || 'gemini-3.1-flash-image-preview'
     const { prompt, imageUrls = [], imageSize, aspectRatio } = request
+
+    if (!this.genAiClient) {
+      throw new Error('Gemini image API key is not configured')
+    }
 
     this.logger.debug({ prompt, imageUrlsCount: imageUrls.length, imageSize, aspectRatio }, 'Starting image generation')
 
