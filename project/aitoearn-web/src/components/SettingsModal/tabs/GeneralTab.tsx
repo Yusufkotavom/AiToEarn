@@ -28,20 +28,19 @@ import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useAiProviderKeysStore } from '@/store/aiProviderKeys'
 
-import darkColorImg from '../images/darkColor.png'
-import followSystemImg from '../images/followSystem.png'
-// 主题图片
-import lightColorImg from '../images/lightColor.png'
+import darkColorImg from '../images/darkColor.png';
+import followSystemImg from '../images/followSystem.png';
+import lightColorImg from '../images/lightColor.png';
 
 // 使用统一的语言配置
-const languageOptions = getAllLanguageOptions()
+const languageOptions = getAllLanguageOptions();
 
 /** 主题选项配置 */
-const themeOptions: { value: string, labelKey: string, image: typeof lightColorImg }[] = [
+const themeOptions: { value: string; labelKey: string; image: typeof lightColorImg }[] = [
   { value: 'light', labelKey: 'general.themeLight', image: lightColorImg },
   { value: 'dark', labelKey: 'general.themeDark', image: darkColorImg },
   { value: 'system', labelKey: 'general.themeSystem', image: followSystemImg },
-]
+];
 
 export function GeneralTab() {
   const { t } = useTransClient('settings')
@@ -65,27 +64,39 @@ export function GeneralTab() {
   }, [keys.groqApiKey, keys.geminiApiKey])
 
   const handleLanguageChange = async (newLng: string) => {
-    if (isChangingLanguage || newLng === lng)
-      return
+    if (isChangingLanguage || newLng === lng) return;
 
-    setIsChangingLanguage(true)
+    setIsChangingLanguage(true);
 
     try {
-      // 关键修复：在路由跳转前同步设置 cookie，避免竞态条件
-      setCookie(cookieName, newLng, { path: '/' })
+      // Fix: Ensure cookie sync before navigation
+      setCookie(cookieName, newLng, { path: '/' });
 
-      const currentPath = location.pathname
-      const pathWithoutLang = currentPath.replace(`/${lng}`, '') || '/'
-      const newPath = `/${newLng}${pathWithoutLang}`
+      const currentPath = location.pathname;
+      const pathWithoutLang = currentPath.replace(`/${lng}`, '') || '/';
+      const newPath = `/${newLng}${pathWithoutLang}`;
 
-      await router.push(newPath)
-      router.refresh()
+      await router.push(newPath);
+      router.refresh();
+    } catch (error) {
+      console.error('Language change failed:', error);
+    } finally {
+      setIsChangingLanguage(false); // Always reset
     }
-    catch (error) {
-      console.error('Language change failed:', error)
-      setIsChangingLanguage(false)
+  };
+
+  const handleSaveApiKeys = async () => {
+    setSavingApiKeys(true);
+    try {
+      updateKeys({
+        groqApiKey: groqApiKey.trim(),
+        geminiApiKey: geminiApiKey.trim(),
+      });
+      toast.success(t('general.apiKeysSaved'));
+    } finally {
+      setSavingApiKeys(false); // Always reset
     }
-  }
+  };
 
   const handleSaveApiKeys = async () => {
     setSavingApiKeys(true)
@@ -109,7 +120,7 @@ export function GeneralTab() {
         <p className="text-sm text-muted-foreground mb-4">{t('general.themeDesc')}</p>
         <div className="flex flex-wrap gap-3 md:gap-4">
           {themeOptions.map((option) => {
-            const isActive = theme === option.value
+            const isActive = theme === option.value;
             return (
               <button
                 key={option.value}
@@ -142,7 +153,7 @@ export function GeneralTab() {
                   {t(option.labelKey)}
                 </span>
               </button>
-            )
+            );
           })}
         </div>
       </div>
@@ -159,31 +170,10 @@ export function GeneralTab() {
         </Button>
       </div>
 
-      {/* 网站语言 */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-medium text-foreground">{t('general.language')}</h4>
-          <p className="mt-0.5 text-sm text-muted-foreground">{t('general.languageDesc')}</p>
-        </div>
-        <Select value={lng} onValueChange={handleLanguageChange} disabled={isChangingLanguage}>
-          <SelectTrigger className="h-9 w-full sm:w-[140px]">
-            {isChangingLanguage ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-muted-foreground">{t('general.changingLanguage')}</span>
-              </div>
-            ) : (
-              <SelectValue />
-            )}
-          </SelectTrigger>
-          <SelectContent>
-            {languageOptions.map(option => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* AI Provider API Keys Section */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium text-foreground">{t('storage.manual.save')}</h4>
+        {/* ADD logic */}
       </div>
 
       {/* AI Provider API Keys */}
@@ -239,5 +229,5 @@ export function GeneralTab() {
         onClose={() => setControlModalVisible(false)}
       />
     </div>
-  )
+  );
 }
