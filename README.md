@@ -9,6 +9,10 @@
 
 简体中文 | [English](README_EN.md)
 
+📘 Dokumentasi teknis (Bahasa Indonesia): [DOKUMENTASI_PROYEK_ID.md](DOKUMENTASI_PROYEK_ID.md)
+
+🤖 Panduan agent: [AGENTS.md](AGENTS.md) | Skill index: [skills/SKILL_INDEX.md](skills/SKILL_INDEX.md)
+
 **Create · Publish · Engage · Monetize —— 一站式平台。**
 
 AiToEarn 通过 **AI 自动化**，帮助创作者、品牌与企业在全球主流平台上构建、分发并变现内容。
