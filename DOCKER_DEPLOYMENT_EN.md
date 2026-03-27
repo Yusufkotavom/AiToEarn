@@ -209,6 +209,11 @@ Update all three locations:
 ASSETS_CONFIG: '{"provider":"s3","region":"us-east-1","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://127.0.0.1:9000","cdnEndpoint":"http://127.0.0.1:8080/oss","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
 ```
 
+> Important:
+> - `publicEndpoint` is used to generate **presigned upload URL** (must be directly reachable by browser/client).
+> - `cdnEndpoint` is used to generate **public read URL**.
+> - Do not set `publicEndpoint` to `/oss` proxy path if your presigned upload expects bucket path directly.
+
 AWS S3 example:
 
 ```yaml
