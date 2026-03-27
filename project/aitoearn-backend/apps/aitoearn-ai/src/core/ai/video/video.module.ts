@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ModelsConfigModule } from '../models-config'
+import { PlaywrightRelayService } from '../relay/playwright-relay.service'
 import { AicsoGrokVideoModule } from './aicso-grok'
 import { AicsoVeoVideoModule } from './aicso-veo'
 import { GeminiVideoModule } from './gemini'
@@ -21,7 +22,7 @@ import { VolcengineVideoModule } from './volcengine'
     AicsoGrokVideoModule,
   ],
   controllers: [VideoController],
-  providers: [VideoService, VideoTaskStatusScheduler],
+  providers: [VideoService, VideoTaskStatusScheduler, PlaywrightRelayService],
   exports: [VideoService, VolcengineVideoModule, OpenAIVideoModule, GeminiVideoModule, GrokVideoModule, AicsoVeoVideoModule, AicsoGrokVideoModule],
 })
 export class VideoModule {}

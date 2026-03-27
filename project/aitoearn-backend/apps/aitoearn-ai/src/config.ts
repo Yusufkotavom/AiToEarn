@@ -190,6 +190,16 @@ export const aiConfigSchema = z.object({
       })),
     })),
   }),
+  playwrightRelay: z.object({
+    enabled: z.boolean().default(false),
+    baseUrl: z.string().default(''),
+    apiKey: z.string().default(''),
+    timeoutMs: z.number().int().positive().default(120000),
+    genImageMode: z.enum(['api', 'playwright-relay']).default('api'),
+    genVideoMode: z.enum(['api', 'playwright-relay']).default('api'),
+    defaultImageProvider: z.string().default('google-whisk'),
+    defaultVideoProvider: z.string().default('grok-imagine'),
+  }),
 })
 
 // Agent 配置

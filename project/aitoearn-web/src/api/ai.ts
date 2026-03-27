@@ -1,6 +1,6 @@
 import type { AdaptMaterialDto, MaterialAdaptationVo } from './types/ai'
-import { APP_URL } from '@/app/layout/shared/constants'
 import type { AssetListVo } from '@/types/agent-asset'
+import { APP_URL } from '@/app/layout/shared/constants'
 import { useUserStore } from '@/store/user'
 import http from '@/utils/request'
 
@@ -26,6 +26,7 @@ export function putUserAiConfigItem(data: {
 export function generateImage(data: {
   prompt: string
   model?: string
+  provider?: 'google-whisk' | 'google-flow' | 'grok-imagine'
   n?: number
   quality?: 'standard' | 'hd'
   response_format?: 'url' | 'b64_json'
@@ -60,6 +61,7 @@ export function getVideoGenerationModels() {
 export function generateVideo(data: {
   model: string
   prompt: string
+  provider?: 'grok-imagine' | 'google-flow'
   image?: any
   image_tail?: string
   size?: string
