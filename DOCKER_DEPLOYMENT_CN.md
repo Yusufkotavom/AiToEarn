@@ -177,9 +177,22 @@ OAuth 回调地址格式：`https://{APP_DOMAIN}/api/plat/{platform}/auth/back`
 
 Docker Compose 内置了 [RustFS](https://github.com/rustfs/rustfs) 作为 S3 兼容对象存储，**开箱即用，无需额外配置**。
 
+> RustFS 属于**自建/本地对象存储**（运行在你的 Docker 环境内），默认不是公有云托管服务。  
+> 只有你自己对外暴露端口或绑定域名后，它才会变成可公网访问。
+
 **RustFS 管理控制台**：http://localhost:9001
 - 默认账号：`rustfsadmin`
 - 默认密码：`rustfsadmin`
+
+#### RustFS vs Cloudflare R2（快速对比）
+
+| 维度 | RustFS（自建） | Cloudflare R2（云托管） |
+|------|----------------|--------------------------|
+| 服务形态 | 你自己在 Docker/VPS 运行 | Cloudflare 托管 |
+| 公网可用性 | 默认否（先本地/内网） | 默认可公网访问 |
+| 运维成本 | 备份、扩容、可用性由你负责 | 底层基础设施由 Cloudflare 负责 |
+| 成本结构 | 主要是你自己的服务器资源成本 | 按 R2 存储/请求/出口策略计费 |
+| 适用场景 | 本地开发、私有化部署 | 生产环境、跨地域公网访问 |
 
 <details>
 <summary>如需修改 RustFS 凭证或切换到外部 S3/OSS</summary>
@@ -202,7 +215,33 @@ ASSETS_CONFIG: '{"provider":"s3","region":"us-east-1","bucketName":"aitoearn","e
 ASSETS_CONFIG: '{"provider":"s3","region":"ap-southeast-1","bucketName":"your-bucket","endpoint":"https://s3.ap-southeast-1.amazonaws.com","accessKeyId":"xxx","secretAccessKey":"xxx","cdnEndpoint":"https://your-cdn.com"}'
 ```
 
+Cloudflare R2 示例：
+
+```yaml
+ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"your-r2-bucket","endpoint":"https://<accountid>.r2.cloudflarestorage.com","publicEndpoint":"https://pub-<hash>.r2.dev","cdnEndpoint":"https://cdn.your-domain.com","accessKeyId":"<r2-access-key-id>","secretAccessKey":"<r2-secret-access-key>","forcePathStyle":true,"cloudflare":{"accountId":"<cf-account-id>","queueId":"<cf-queue-id>","apiToken":"<cf-api-token>"}}'
+```
+
 </details>
+
+#### 快速配置：先用本地存储（RustFS）
+
+1. 保持 `docker-compose.yml` 中 `rustfs` 与 `rustfs-init` 服务开启。
+2. 保持 `aitoearn-ai` 和 `aitoearn-server` 的 `ASSETS_CONFIG.endpoint` 为 `http://rustfs.local:9000`。
+3. 启动服务：`docker compose up -d`。
+4. 验证：
+   - RustFS 控制台：`http://localhost:9001`
+   - `aitoearn` 桶已创建（由 `rustfs-init` 自动创建）。
+
+#### 快速配置：切换到 Cloudflare R2
+
+1. 在 Cloudflare 控制台创建 R2 Bucket 和 API Token。
+2. 在 `aitoearn-ai` 与 `aitoearn-server` 中替换 `ASSETS_CONFIG` 为上方 R2 示例。
+3. 可选但推荐（用于事件驱动确认上传）：
+   - 创建 Cloudflare Queue，并在 `ASSETS_CONFIG.cloudflare` 填入 `accountId/queueId/apiToken`。
+4. 重启后端服务：
+   - `docker compose up -d aitoearn-ai aitoearn-server`
+5. 如不再需要本地 RustFS，可停止：
+   - `docker compose stop rustfs rustfs-init`
 
 ### 其他可选服务
 
