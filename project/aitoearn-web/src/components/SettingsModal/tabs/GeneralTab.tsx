@@ -1,23 +1,169 @@
-import React, { useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { updateApiKeys } from '../../store/actions';
+/**
+ * GeneralTab - 通用设置 Tab
+ */
 
-const GeneralTab = () => {
-    const apiKeys = useSelector(state => state.apiKeys);
-    const dispatch = useDispatch();
+'use client';
 
-    // Sync API keys with local state
-    useEffect(() => {
-        // Here, we would typically fetch the keys or sync with local storage
-        dispatch(updateApiKeys(apiKeys));
-    }, [apiKeys, dispatch]);
+import { setCookie } from 'cookies-next';
+import { Loader2, Settings } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTransClient } from '@/app/i18n/client';
+import { cookieName } from '@/app/i18n/settings';
+import NotificationControlModal from '@/components/notification/NotificationControlModal';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useGetClientLng } from '@/hooks/useSystem';
+import { getAllLanguageOptions } from '@/lib/i18n/languageConfig';
+import { toast } from '@/lib/toast';
+import { cn } from '@/lib/utils';
+import { useAiProviderKeysStore } from '@/store/aiProviderKeys';
 
-    return (
-        <div>
-            <h2>General Settings</h2>
-            {/* Other Settings UI Logic */}
+import darkColorImg from '../images/darkColor.png';
+import followSystemImg from '../images/followSystem.png';
+import lightColorImg from '../images/lightColor.png';
+
+// 使用统一的语言配置
+const languageOptions = getAllLanguageOptions();
+
+/** 主题选项配置 */
+const themeOptions: { value: string; labelKey: string; image: typeof lightColorImg }[] = [
+  { value: 'light', labelKey: 'general.themeLight', image: lightColorImg },
+  { value: 'dark', labelKey: 'general.themeDark', image: darkColorImg },
+  { value: 'system', labelKey: 'general.themeSystem', image: followSystemImg },
+];
+
+export function GeneralTab() {
+  const { t } = useTransClient('settings');
+  const router = useRouter();
+  const lng = useGetClientLng();
+  const [controlModalVisible, setControlModalVisible] = useState(false);
+  const [isChangingLanguage, setIsChangingLanguage] = useState(false);
+  const [savingApiKeys, setSavingApiKeys] = useState(false);
+
+  // 使用 next-themes 管理主题
+  const { theme, setTheme } = useTheme();
+  const { keys, updateKeys, clearKeys } = useAiProviderKeysStore((state) => ({
+    keys: state.keys,
+    updateKeys: state.updateKeys,
+    clearKeys: state.clearKeys,
+  }));
+  const [groqApiKey, setGroqApiKey] = useState(keys.groqApiKey);
+  const [geminiApiKey, setGeminiApiKey] = useState(keys.geminiApiKey);
+
+  // Sync store keys with local state
+  useEffect(() => {
+    setGroqApiKey(keys.groqApiKey);
+    setGeminiApiKey(keys.geminiApiKey);
+  }, [keys]);
+
+  const handleLanguageChange = async (newLng: string) => {
+    if (isChangingLanguage || newLng === lng) return;
+
+    setIsChangingLanguage(true);
+
+    try {
+      // Fix: Ensure cookie sync before navigation
+      setCookie(cookieName, newLng, { path: '/' });
+
+      const currentPath = location.pathname;
+      const pathWithoutLang = currentPath.replace(`/${lng}`, '') || '/';
+      const newPath = `/${newLng}${pathWithoutLang}`;
+
+      await router.push(newPath);
+      router.refresh();
+    } catch (error) {
+      console.error('Language change failed:', error);
+    } finally {
+      setIsChangingLanguage(false); // Always reset
+    }
+  };
+
+  const handleSaveApiKeys = async () => {
+    setSavingApiKeys(true);
+    try {
+      updateKeys({
+        groqApiKey: groqApiKey.trim(),
+        geminiApiKey: geminiApiKey.trim(),
+      });
+      toast.success(t('general.apiKeysSaved'));
+    } finally {
+      setSavingApiKeys(false); // Always reset
+    }
+  };
+
+  return (
+    <div className="w-full space-y-8">
+      {/* 外观主题 */}
+      <div>
+        <h4 className="text-sm font-medium text-foreground mb-1">{t('general.theme')}</h4>
+        <p className="text-sm text-muted-foreground mb-4">{t('general.themeDesc')}</p>
+        <div className="flex flex-wrap gap-3 md:gap-4">
+          {themeOptions.map((option) => {
+            const isActive = theme === option.value;
+            return (
+              <button
+                key={option.value}
+                onClick={() => setTheme(option.value)}
+                className="flex flex-col items-center gap-2 group"
+              >
+                {/* 图片容器 */}
+                <div
+                  className={cn(
+                    'relative w-16 h-11 md:w-20 md:h-14 rounded-lg overflow-hidden border-2 transition-all',
+                    isActive
+                      ? 'border-primary shadow-sm'
+                      : 'border-border hover:border-muted-foreground',
+                  )}
+                >
+                  <Image
+                    src={option.image}
+                    alt={t(option.labelKey)}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                {/* 标签 */}
+                <span
+                  className={cn(
+                    'text-xs transition-colors',
+                    isActive ? 'text-primary font-medium' : 'text-muted-foreground',
+                  )}
+                >
+                  {t(option.labelKey)}
+                </span>
+              </button>
+            );
+          })}
         </div>
-    );
-};
+      </div>
 
-export default GeneralTab;
+      {/* 邮件通知设置 */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm font-medium text-foreground">{t('general.notifications')}</h4>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('general.notificationsDesc')}</p>
+        </div>
+        <Button onClick={() => setControlModalVisible(true)} variant="outline" size="sm">
+          <Settings className="w-4 h-4 mr-1" />
+          {t('general.editNotifications')}
+        </Button>
+      </div>
+
+      {/* AI Provider API Keys Section */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium text-foreground">{t('storage.manual.save')}</h4>
+        {/* ADD logic */}
+      </div>
+    </div>
+  );
+}
