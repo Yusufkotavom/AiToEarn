@@ -3,6 +3,8 @@
  * 包含页脚链接和配置信息
  */
 
+import { DOCS_URL } from '@/app/layout/shared/constants'
+
 export interface FooterLink {
   label: string
   href: string
@@ -26,7 +28,7 @@ export const footerLegal: FooterLink[] = [
 
 // 资源链接
 export const footerResources: FooterLink[] = [
-  { label: 'docs', href: 'https://docs.aitoearn.ai/', external: true },
+  { label: 'docs', href: DOCS_URL, external: true },
 ]
 
 // 账户链接

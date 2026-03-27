@@ -4,6 +4,7 @@
  */
 import type { Metadata } from 'next'
 import { useTranslation } from '@/app/i18n'
+import { APP_URL } from '@/app/layout/shared/constants'
 import { fallbackLng, languages } from '@/app/i18n/settings'
 import { getMetadata } from '@/utils/general'
 import styles from '../websit.module.scss'
@@ -31,6 +32,8 @@ export async function generateMetadata({
 }
 
 export default function TermsOfServicePage() {
+  const privacyPolicyUrl = `${APP_URL}/en/websit/privacy-policy`
+
   return (
     <div className={styles.websitPage}>
       <main className={styles.main}>
@@ -67,7 +70,10 @@ export default function TermsOfServicePage() {
                 USING THE SERVICE, YOU AGREE THAT YOU HAVE READ AND UNDERSTOOD, AND, AS A CONDITION
                 TO YOUR USE OF THE SERVICE, YOU AGREE TO BE BOUND BY, THE FOLLOWING TERMS AND
                 CONDITIONS, INCLUDING Aitoearn'S PRIVACY POLICY
-                https://aitoearn.ai/en/websit/privacy-policy AND ANY ADDITIONAL TERMS AND POLICIES
+                {' '}
+                {privacyPolicyUrl}
+                {' '}
+                AND ANY ADDITIONAL TERMS AND POLICIES
                 Aitoearn MAY PROVIDE FROM TIME TO TIME (TOGETHER, THESE "TERMS").
               </p>
               <p className={styles.sectionContent}>

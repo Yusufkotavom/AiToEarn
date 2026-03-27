@@ -8,6 +8,7 @@ import QRCode from 'qrcode'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { setDisableLanguageSwitch } from '@/app/i18n/client'
+import { APP_URL } from '@/app/layout/shared/constants'
 import logo from '@/assets/images/logo.png'
 import ChatMessage from '@/components/Chat/ChatMessage'
 import { getOssUrl } from '@/utils/oss'
@@ -137,7 +138,7 @@ async function generateImageFromAllMessages(
     )
 
     const appTitle = options?.appTitle || 'AiToEarn'
-    const appUrl = options?.appUrl || 'https://aitoearn.ai'
+    const appUrl = options?.appUrl || APP_URL
     const shareUrl = options?.shareUrl
     const expiresAt = options?.expiresAt
 

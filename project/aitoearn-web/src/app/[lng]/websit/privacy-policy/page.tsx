@@ -4,6 +4,7 @@
  */
 import type { Metadata } from 'next'
 import { useTranslation } from '@/app/i18n'
+import { APP_URL } from '@/app/layout/shared/constants'
 import { fallbackLng, languages } from '@/app/i18n/settings'
 import { getMetadata } from '@/utils/general'
 import styles from '../websit.module.scss'
@@ -31,6 +32,8 @@ export async function generateMetadata({
 }
 
 export default function PrivacyPolicyPage() {
+  const termsOfServiceUrl = `${APP_URL}/en/websit/terms-of-service`
+
   return (
     <div className={styles.websitPage}>
       <main className={styles.main}>
@@ -45,7 +48,11 @@ export default function PrivacyPolicyPage() {
               <p className={styles.introduction}>
                 Aitoearn provides this Privacy Policy to inform you of our policies and procedures
                 regarding the collection, use, protection, and disclosure of Personal Information
-                received from your use of this website, located at https://aitoearn.ai (“Site”), as
+                received from your use of this website, located at
+                {' '}
+                {APP_URL}
+                {' '}
+                (“Site”), as
                 well as all related websites including our subdomains, applications, browser
                 extensions, and other services provided by us (collectively, together with the Site,
                 our “Service”), and in connection with our customer, vendor, and partner
@@ -65,7 +72,9 @@ export default function PrivacyPolicyPage() {
               <p className={styles.sectionContent}>
                 Registration with, use of, and access to the Service is subject to this Privacy
                 Policy and our Terms of Use located at
-                https://aitoearn.ai/en/websit/terms-of-service.
+                {' '}
+                {termsOfServiceUrl}
+                .
               </p>
             </section>
 

@@ -13,6 +13,7 @@ import { convertMessages } from '@/app/[lng]/chat/[taskId]/utils'
 import { AccountPlatInfoMap } from '@/app/config/platConfig'
 import { PubType } from '@/app/config/publishConfig'
 import { useTransClient } from '@/app/i18n/client'
+import { APP_URL } from '@/app/layout/shared/constants'
 import ChatMessage from '@/components/Chat/ChatMessage'
 import { Button } from '@/components/ui/button'
 import {
@@ -205,8 +206,7 @@ export function ShareModal({ taskId, open = false, onOpenChange, trigger }: Shar
     try {
       const res = await agentApi.createPublicShare(taskId, validitySeconds)
       if (res?.data) {
-        const baseUrl
-          = typeof window !== 'undefined' ? window.location.origin : 'https://aitoearn.ai'
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : APP_URL
         const fullUrl = `${baseUrl}/chat?token=${res.data.token}`
         setShareLink(fullUrl)
         setShareExpiresAt(res.data.expiresAt)
@@ -246,8 +246,7 @@ export function ShareModal({ taskId, open = false, onOpenChange, trigger }: Shar
       try {
         const res = await agentApi.createPublicShare(taskId, validitySeconds)
         if (res?.data) {
-          const baseUrl
-            = typeof window !== 'undefined' ? window.location.origin : 'https://aitoearn.ai'
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : APP_URL
           link = `${baseUrl}/chat?token=${res.data.token}`
           setShareLink(link)
           setShareExpiresAt(res.data.expiresAt)
@@ -285,8 +284,7 @@ export function ShareModal({ taskId, open = false, onOpenChange, trigger }: Shar
       try {
         const res = await agentApi.createPublicShare(taskId, validitySeconds)
         if (res?.data) {
-          const baseUrl
-            = typeof window !== 'undefined' ? window.location.origin : 'https://aitoearn.ai'
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : APP_URL
           link = `${baseUrl}/chat?token=${res.data.token}`
           setShareLink(link)
           setShareExpiresAt(res.data.expiresAt)
@@ -362,8 +360,7 @@ export function ShareModal({ taskId, open = false, onOpenChange, trigger }: Shar
       try {
         const res = await agentApi.createPublicShare(taskId, validitySeconds)
         if (res?.data) {
-          const baseUrl
-            = typeof window !== 'undefined' ? window.location.origin : 'https://aitoearn.ai'
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : APP_URL
           link = `${baseUrl}/chat?token=${res.data.token}`
           expiresAt = res.data.expiresAt
           setShareLink(link)
@@ -384,7 +381,7 @@ export function ShareModal({ taskId, open = false, onOpenChange, trigger }: Shar
     try {
       const blobs = await generateImageFromMessages(selectedMessages, user?.name, {
         appTitle: t('appName'),
-        appUrl: t('appUrl'),
+        appUrl: APP_URL,
         shareUrl: link || undefined,
         expiresAt: expiresAt || undefined,
       })
