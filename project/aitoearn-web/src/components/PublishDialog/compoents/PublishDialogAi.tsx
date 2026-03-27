@@ -30,7 +30,15 @@ import {
   useState,
 } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { aiChatStream, generateVideo, getVideoGenerationModels, getVideoTaskStatus } from '@/api/ai'
+import {
+  aiChatStream,
+  generateImage,
+  generateVideo,
+  getImageGenerationModels,
+  getImageTaskStatus,
+  getVideoGenerationModels,
+  getVideoTaskStatus,
+} from '@/api/ai'
 import { uploadToOss } from '@/api/oss'
 import { useTransClient } from '@/app/i18n/client'
 import { formatImg, VideoGrabFrame } from '@/components/PublishDialog/PublishDialog.util'
@@ -343,6 +351,7 @@ const PublishDialogAi = memo(
         const savedModel = localStorage.getItem('ai_image_model')
         return savedModel || 'gemini-2.5-flash-image'
       })
+      const [imageModels, setImageModels] = useState<any[]>([])
 
       // Video generation state
       const [videoModels, setVideoModels] = useState<any[]>([])
@@ -375,7 +384,7 @@ const PublishDialogAi = memo(
         }
       }, [messages])
 
-      // Initialize chat and image models
+      // Initialize chat models
       useEffect(() => {
         if (chatModels.length > 0) {
           // Check if current chat model exists in list
@@ -393,24 +402,38 @@ const PublishDialogAi = memo(
               localStorage.setItem('ai_chat_model', chatModels[0].name)
             }
           }
-
-          // Check if current image model exists in list
-          const imageModelExists = chatModels.find((m: any) => m.name === selectedImageModel)
-          if (!imageModelExists) {
-            // Try to find default model
-            const defaultModel = chatModels.find((m: any) => m.name === 'gemini-2.5-flash-image')
-            if (defaultModel) {
-              setSelectedImageModel(defaultModel.name)
-              localStorage.setItem('ai_image_model', defaultModel.name)
-            }
-            else if (chatModels.length > 0) {
-              // Use first model if default not found
-              setSelectedImageModel(chatModels[0].name)
-              localStorage.setItem('ai_image_model', chatModels[0].name)
-            }
-          }
         }
       }, [chatModels])
+
+      // Initialize image generation models
+      useEffect(() => {
+        const fetchImageModels = async () => {
+          try {
+            const res: any = await getImageGenerationModels()
+            if (res.data && Array.isArray(res.data)) {
+              setImageModels(res.data)
+
+              const savedModel = localStorage.getItem('ai_image_model')
+              const currentModelExists = res.data.find((m: any) => m.name === selectedImageModel)
+              if (currentModelExists) {
+                return
+              }
+              if (savedModel && res.data.find((m: any) => m.name === savedModel)) {
+                setSelectedImageModel(savedModel)
+                return
+              }
+              if (res.data.length > 0) {
+                setSelectedImageModel(res.data[0].name)
+                localStorage.setItem('ai_image_model', res.data[0].name)
+              }
+            }
+          }
+          catch (error) {
+            console.error('Failed to fetch image models:', error)
+          }
+        }
+        fetchImageModels()
+      }, [selectedImageModel])
 
       // Initialize video models
       useEffect(() => {
@@ -634,6 +657,100 @@ const PublishDialogAi = memo(
         [selectedVideoModel, videoModels, pollVideoTaskStatus, t],
       )
 
+      // Poll image task status
+      const pollImageTaskStatus = useCallback(async (logId: string) => {
+        const checkStatus = async () => {
+          try {
+            const res: any = await getImageTaskStatus(logId)
+            const status = res?.data?.status
+            if (!status) {
+              return false
+            }
+            const normalized = String(status).toLowerCase()
+            if (normalized === 'success') {
+              const images = res?.data?.images || []
+              const markdown = images
+                .map((img: any, index: number) => img?.url ? `![generated-${index + 1}](${getOssUrl(img.url)})` : '')
+                .filter(Boolean)
+                .join('\n\n')
+
+              setMessages((prev) => {
+                const newMessages = [...prev]
+                if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+                  newMessages[newMessages.length - 1] = {
+                    ...newMessages[newMessages.length - 1],
+                    content: markdown || 'Image generated successfully',
+                  }
+                }
+                return newMessages
+              })
+              setIsProcessing(false)
+              toast.success('Image generated successfully')
+              return true
+            }
+            if (normalized === 'failed') {
+              setMessages(prev => prev.slice(0, -1))
+              setIsProcessing(false)
+              toast.error(res?.data?.errorMessage || 'Image generation failed')
+              return true
+            }
+            return false
+          }
+          catch {
+            return false
+          }
+        }
+
+        const poll = async () => {
+          const done = await checkStatus()
+          if (!done) {
+            setTimeout(poll, 5000)
+          }
+        }
+        poll()
+      }, [t])
+
+      // Handle image generation via backend image API
+      const handleImageGeneration = useCallback(async (prompt: string) => {
+        if (!selectedImageModel) {
+          toast.error('Please select image model first')
+          return
+        }
+
+        try {
+          setIsProcessing(true)
+          const placeholderMsg: Message = {
+            role: 'assistant',
+            content: 'Generating image...',
+            action: 'generateImage',
+          }
+          setMessages(prev => [...prev, placeholderMsg])
+
+          const selectedModel = imageModels.find((m: any) => m.name === selectedImageModel)
+          const size = selectedModel?.sizes?.[0] || '1024x1024'
+
+          const res: any = await generateImage({
+            model: selectedImageModel,
+            prompt,
+            n: 1,
+            size,
+            response_format: 'url',
+          })
+
+          const logId = res?.data?.logId
+          if (!logId) {
+            throw new Error('Image generation failed')
+          }
+          pollImageTaskStatus(logId)
+        }
+        catch (error: any) {
+          console.error('Image Generation Error:', error)
+          setMessages(prev => prev.slice(0, -1))
+          toast.error(error.message || 'Image generation failed')
+          setIsProcessing(false)
+        }
+      }, [selectedImageModel, imageModels, pollImageTaskStatus, t])
+
       // Handle AI response
       const handleAIResponse = useCallback(
         async (
@@ -647,9 +764,9 @@ const PublishDialogAi = memo(
             const placeholderMsg: Message = { role: 'assistant', content: '', action }
             setMessages(prev => [...prev, placeholderMsg])
 
-            // Select model based on action (use image model for both generateImage and imageToImage)
+            // Select model based on action (image model only used for image-to-image chat flow)
             const modelToUse
-              = action === 'generateImage' || action === 'imageToImage'
+              = action === 'imageToImage'
                 ? selectedImageModel
                 : selectedChatModel
 
@@ -829,7 +946,13 @@ const PublishDialogAi = memo(
           // Save uploaded image reference before clearing
           const savedUploadedImage = uploadedImage
 
-          // Call video generation directly if it's video generation
+          // Call media generation directly if selected
+          if (currentAction === 'generateImage') {
+            await handleImageGeneration(messageContent)
+            setInputValue('')
+            return
+          }
+
           if (currentAction === 'generateVideo') {
             await handleVideoGeneration(messageContent)
             setInputValue('')
@@ -852,9 +975,6 @@ const PublishDialogAi = memo(
                 break
               case 'translate':
                 systemPrompt = t('aiFeatures.defaultPrompts.translate' as any)
-                break
-              case 'generateImage':
-                systemPrompt = t('aiFeatures.defaultPrompts.generateImage' as any)
                 break
               case 'imageToImage':
                 systemPrompt = t('aiFeatures.defaultPrompts.imageToImage' as any)
@@ -917,6 +1037,7 @@ const PublishDialogAi = memo(
           customPrompts,
           uploadedImage,
           handleAIResponse,
+          handleImageGeneration,
           handleVideoGeneration,
           t,
         ],
@@ -1523,7 +1644,7 @@ const PublishDialogAi = memo(
                   <SelectValue placeholder={t('aiFeatures.selectImageModel' as any)} />
                 </SelectTrigger>
                 <SelectContent>
-                  {chatModels.map((model: any) => (
+                  {imageModels.map((model: any) => (
                     <SelectItem key={model.name} value={model.name}>
                       <div className="py-1">
                         <div className="font-bold mb-1">{model.description}</div>

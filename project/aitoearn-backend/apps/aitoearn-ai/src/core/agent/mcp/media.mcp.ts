@@ -17,6 +17,25 @@ const generateMediaSchema = z.object({
   model: z.enum(['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview']).optional(),
 })
 
+const pollinationsImageSchema = z.object({
+  prompt: z.string().min(1),
+  model: z.enum(['flux', 'gptimage', 'imagen']).default('flux'),
+  width: z.number().int().min(256).max(2048).default(1024),
+  height: z.number().int().min(256).max(2048).default(1024),
+  seed: z.number().int().optional(),
+  safe: z.boolean().optional(),
+  nologo: z.boolean().default(true),
+})
+
+const pollinationsVideoSchema = z.object({
+  prompt: z.string().min(1),
+  model: z.enum(['veo-3.1', 'seedance']).default('veo-3.1'),
+  width: z.number().int().min(256).max(1920).default(720),
+  height: z.number().int().min(256).max(1920).default(1280),
+  seed: z.number().int().optional(),
+  safe: z.boolean().optional(),
+})
+
 const generateVideoSchema = z.object({
   prompt: z.string(),
   input_reference: z.string().optional(),
@@ -71,6 +90,8 @@ export enum MediaToolName {
   GetVeoVideoStatus = 'getVeoVideoStatus',
   GenerateVideoWithGrok = 'generateVideoWithGrok',
   GetGrokVideoStatus = 'getGrokVideoStatus',
+  GenerateImageWithPollinations = 'generateImageWithPollinations',
+  GenerateVideoWithPollinations = 'generateVideoWithPollinations',
 }
 
 @Injectable()
@@ -439,6 +460,85 @@ Returns task ID for status tracking.`,
     )
   }
 
+  createGenerateImageWithPollinationsTool() {
+    return wrapTool(
+      this.logger,
+      MediaToolName.GenerateImageWithPollinations,
+      `Generate image with Pollinations models.
+
+Available models (from Pollinations docs ecosystem):
+- flux (default)
+- gptimage
+- imagen
+
+Returns a direct media URL from Pollinations.`,
+      pollinationsImageSchema.shape,
+      async ({ prompt, model, width, height, seed, safe, nologo }) => {
+        const imageBaseUrl = process.env['POLLINATIONS_IMAGE_BASE_URL'] || 'https://image.pollinations.ai'
+        const url = new URL(`${imageBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
+        url.searchParams.set('model', model)
+        url.searchParams.set('width', String(width))
+        url.searchParams.set('height', String(height))
+        url.searchParams.set('nologo', String(nologo))
+        if (seed != null) {
+          url.searchParams.set('seed', String(seed))
+        }
+        if (safe != null) {
+          url.searchParams.set('safe', String(safe))
+        }
+        if (process.env['POLLINATIONS_PUBLISHABLE_KEY']) {
+          url.searchParams.set('token', process.env['POLLINATIONS_PUBLISHABLE_KEY'])
+        }
+        if (process.env['POLLINATIONS_APP_URL']) {
+          url.searchParams.set('referrer', process.env['POLLINATIONS_APP_URL'])
+        }
+
+        return {
+          content: [
+            { type: 'resource_link', uri: url.toString(), name: `Pollinations image (${model})` } as const,
+            { type: 'text', text: `Pollinations image URL: ${url.toString()}` },
+          ],
+        }
+      },
+    )
+  }
+
+  createGenerateVideoWithPollinationsTool() {
+    return wrapTool(
+      this.logger,
+      MediaToolName.GenerateVideoWithPollinations,
+      `Generate video with Pollinations models.
+
+Available models (from Pollinations docs ecosystem):
+- veo-3.1 (default)
+- seedance
+
+Returns a direct media URL from Pollinations.`,
+      pollinationsVideoSchema.shape,
+      async ({ prompt, model, width, height, seed, safe }) => {
+        const videoBaseUrl = process.env['POLLINATIONS_VIDEO_BASE_URL'] || 'https://video.pollinations.ai'
+        const url = new URL(`${videoBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
+        url.searchParams.set('model', model)
+        url.searchParams.set('width', String(width))
+        url.searchParams.set('height', String(height))
+        if (seed != null) {
+          url.searchParams.set('seed', String(seed))
+        }
+        if (safe != null) {
+          url.searchParams.set('safe', String(safe))
+        }
+        if (process.env['POLLINATIONS_PUBLISHABLE_KEY']) {
+          url.searchParams.set('token', process.env['POLLINATIONS_PUBLISHABLE_KEY'])
+        }
+        if (process.env['POLLINATIONS_APP_URL']) {
+          url.searchParams.set('referrer', process.env['POLLINATIONS_APP_URL'])
+        }
+
+        return successResult(`Pollinations video URL (${model}): ${url.toString()}`)
+      },
+    )
+  }
+
   createServer(userId: string, userType: UserType): McpSdkServerConfigWithInstance {
     return createSdkMcpServer({
       name: McpServerName.MediaGeneration,
@@ -453,6 +553,8 @@ Returns task ID for status tracking.`,
         // this.createGetVeoVideoStatusTool(userId, userType),
         this.createGenerateVideoWithGrokTool(userId, userType),
         this.createGetGrokVideoStatusTool(userId, userType),
+        this.createGenerateImageWithPollinationsTool(),
+        this.createGenerateVideoWithPollinationsTool(),
       ],
     })
   }

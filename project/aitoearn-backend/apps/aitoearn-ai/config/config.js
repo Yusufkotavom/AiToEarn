@@ -28,6 +28,11 @@ const {
   GROK_API_KEY,
   AICSO_API_KEY,
   AICSO_BASE_URL,
+  POLLINATIONS_IMAGE_BASE_URL,
+  POLLINATIONS_VIDEO_BASE_URL,
+  POLLINATIONS_APP_URL,
+  POLLINATIONS_SECRET_KEY,
+  POLLINATIONS_PUBLISHABLE_KEY,
 } = process.env
 
 const {
@@ -151,6 +156,14 @@ module.exports = {
     aicso: {
       apiKey: AICSO_API_KEY,
       ...(AICSO_BASE_URL && { baseUrl: AICSO_BASE_URL }),
+    },
+    pollinations: {
+      imageBaseUrl: POLLINATIONS_IMAGE_BASE_URL || 'https://image.pollinations.ai',
+      videoBaseUrl: POLLINATIONS_VIDEO_BASE_URL || 'https://video.pollinations.ai',
+      appUrl: POLLINATIONS_APP_URL || 'https://api.piiblog.net',
+      // NOTE: defaults are set for local testing convenience only.
+      secretKey: POLLINATIONS_SECRET_KEY || 'sk_YYAJJZe63hsQVMTUMReGeVOz8znesFXE',
+      publishableKey: POLLINATIONS_PUBLISHABLE_KEY || 'pk_Vdi4zmEwgFC9MegU',
     },
     aideo: {
       vCreative: {
@@ -336,6 +349,30 @@ module.exports = {
             styles: [],
             pricing: '0',
           },
+          {
+            name: 'pollinations-flux',
+            description: 'Pollinations Flux',
+            sizes: ['1024x1024', '1280x720', '720x1280'],
+            qualities: ['standard'],
+            styles: [],
+            pricing: '0',
+          },
+          {
+            name: 'pollinations-gptimage',
+            description: 'Pollinations GPT Image',
+            sizes: ['1024x1024', '1280x720', '720x1280'],
+            qualities: ['standard'],
+            styles: [],
+            pricing: '0',
+          },
+          {
+            name: 'pollinations-imagen',
+            description: 'Pollinations Imagen',
+            sizes: ['1024x1024', '1280x720', '720x1280'],
+            qualities: ['standard'],
+            styles: [],
+            pricing: '0',
+          },
         ],
         edit: [
           {
@@ -443,6 +480,36 @@ module.exports = {
               { mode: 'video2video', duration: 7, price: 0 },
               { mode: 'video2video', duration: 8, price: 0 },
             ],
+          },
+          {
+            name: 'pollinations-veo-3.1',
+            description: 'Pollinations Veo 3.1',
+            channel: 'pollinations',
+            modes: ['text2video', 'image2video'],
+            resolutions: ['720p'],
+            durations: [8],
+            maxInputImages: 1,
+            aspectRatios: ['1:1', '16:9', '9:16'],
+            defaults: {
+              duration: 8,
+              aspectRatio: '9:16',
+            },
+            pricing: [{ duration: 8, price: 0 }],
+          },
+          {
+            name: 'pollinations-seedance',
+            description: 'Pollinations Seedance',
+            channel: 'pollinations',
+            modes: ['text2video', 'image2video'],
+            resolutions: ['720p'],
+            durations: [8],
+            maxInputImages: 1,
+            aspectRatios: ['1:1', '16:9', '9:16'],
+            defaults: {
+              duration: 8,
+              aspectRatio: '9:16',
+            },
+            pricing: [{ duration: 8, price: 0 }],
           },
         ],
       },
