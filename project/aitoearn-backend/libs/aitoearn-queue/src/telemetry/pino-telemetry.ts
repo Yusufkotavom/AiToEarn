@@ -1,8 +1,9 @@
 import type { ContextManager, Span, SpanOptions, Telemetry, Tracer } from 'bullmq'
+import type { Logger as PinoInstance } from 'pino'
 import { propagationContext } from '@yikart/common'
-import pino, { type Logger as PinoInstance } from 'pino'
 import { PinoLogger } from 'nestjs-pino'
 import { storage, Store } from 'nestjs-pino/storage'
+import pino from 'pino'
 
 interface PinoTelemetryContext {
   requestId?: string

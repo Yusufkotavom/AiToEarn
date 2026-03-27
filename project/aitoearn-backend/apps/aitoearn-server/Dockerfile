@@ -20,6 +20,8 @@ WORKDIR /app
 COPY assets/ ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/dist ./dist
+COPY --from=deps /app/libs ./libs
+COPY --from=deps /app/dist/libs ./libs
 
 ENV NODE_ENV=production
 ENV APP_NAME=$APP_NAME

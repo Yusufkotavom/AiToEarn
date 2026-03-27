@@ -4,7 +4,6 @@ import type { Request, Response } from 'express'
 import {
   ArgumentsHost,
   Catch,
-  Logger,
 } from '@nestjs/common'
 import { AppException, GlobalExceptionFilter, ResponseCode } from '@yikart/common'
 import axios from 'axios'
@@ -19,7 +18,6 @@ type RelayConfig = z.infer<typeof relayConfigSchema>
 
 @Catch(RelayAccountException, RelayAuthException)
 export class RelayExceptionFilter extends GlobalExceptionFilter<unknown> {
-  protected override readonly logger = new Logger(RelayExceptionFilter.name)
   private readonly localUrlPrefixes: string[]
 
   constructor(
