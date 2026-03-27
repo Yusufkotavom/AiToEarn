@@ -124,8 +124,10 @@ services:
       - aitoearn-network
 
   aitoearn-ai:
-    image: aitoearn/aitoearn-ai:latest
-    pull_policy: always
+    image: aitoearn/aitoearn-ai:local
+    build:
+      context: ./project/aitoearn-backend
+      dockerfile: apps/aitoearn-ai/Dockerfile
     container_name: aitoearn-ai
     restart: unless-stopped
     depends_on:
