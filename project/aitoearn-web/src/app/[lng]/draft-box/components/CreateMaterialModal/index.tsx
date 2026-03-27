@@ -6,9 +6,9 @@
 'use client'
 
 import type { PromotionMaterial } from '@/app/[lng]/brand-promotion/brandPromotionStore/types'
-import { Bot, TriangleAlert } from 'lucide-react'
+import { Bot, Settings2, Sparkles, TriangleAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PlatType } from '@/app/config/platConfig'
 import PubParmasTextarea from '@/components/PublishDialog/compoents/PubParmasTextarea'
@@ -24,6 +24,8 @@ import { Input } from '@/components/ui/input'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { cn } from '@/lib/utils'
 import InlinePlatformSelector from './InlinePlatformSelector'
+import MetadataAiSettingsDialog from './MetadataAiSettingsDialog'
+import { useMetadataAiSettingsStore } from './metadataAiSettingsStore'
 import MobileContent from './MobileContent'
 import { useCreateMaterialForm } from './useCreateMaterialForm'
 import { useMaterialValidation } from './useMaterialValidation'
@@ -55,12 +57,16 @@ const CreateMaterialModalContent = memo(
   }: Omit<CreateMaterialModalProps, 'open'>) => {
     const { t } = useTranslation('brandPromotion')
     const router = useRouter()
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    const [draftPromptTemplate, setDraftPromptTemplate] = useState('')
 
     const {
       params,
       updateParams,
       isSubmitting: submitting,
+      isGeneratingMetadata,
       handleSubmit,
+      generateMetadataByAi,
     } = useCreateMaterialForm({
       groupId,
       editingMaterial,
@@ -68,11 +74,32 @@ const CreateMaterialModalContent = memo(
       onClose,
       onSuccess,
     })
+    const { settings, updateSettings } = useMetadataAiSettingsStore()
 
     const { warnings, effectiveLimits } = useMaterialValidation(params, params.selectedPlatforms)
 
     return (
       <>
+        <MetadataAiSettingsDialog
+          open={settingsOpen}
+          provider={settings.provider}
+          strategy={settings.strategy}
+          promptTemplate={draftPromptTemplate || settings.promptTemplate}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (open) {
+              setDraftPromptTemplate(settings.promptTemplate)
+            }
+          }}
+          onProviderChange={provider => updateSettings({ provider })}
+          onStrategyChange={strategy => updateSettings({ strategy })}
+          onPromptTemplateChange={setDraftPromptTemplate}
+          onSave={() => {
+            updateSettings({ promptTemplate: draftPromptTemplate || settings.promptTemplate })
+            setSettingsOpen(false)
+          }}
+        />
+
         <DialogHeader>
           <DialogTitle>
             {t('createMaterial.title')}
@@ -122,20 +149,54 @@ const CreateMaterialModalContent = memo(
                 updateParams({ des: value, images: imgs || [], video })
               }}
               toolbarExtra={(
-                <div className="px-1.5 border-l border-border first:border-l-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
-                    }}
-                  >
-                    <Bot className="mr-1 h-4 w-4" />
-                    {t('detail.agentGenerate')}
-                  </Button>
-                </div>
+                <>
+                  <div className="px-1.5 border-l border-border first:border-l-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        await generateMetadataByAi(settings)
+                      }}
+                      disabled={isGeneratingMetadata}
+                    >
+                      <Sparkles className="mr-1 h-4 w-4" />
+                      {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
+                    </Button>
+                  </div>
+
+                  <div className="px-1.5 border-l border-border first:border-l-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDraftPromptTemplate(settings.promptTemplate)
+                        setSettingsOpen(true)
+                      }}
+                    >
+                      <Settings2 className="mr-1 h-4 w-4" />
+                      {t('createMaterial.metadataAiSettings')}
+                    </Button>
+                  </div>
+
+                  <div className="px-1.5 border-l border-border first:border-l-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
+                      }}
+                    >
+                      <Bot className="mr-1 h-4 w-4" />
+                      {t('detail.agentGenerate')}
+                    </Button>
+                  </div>
+                </>
               )}
               extend={(
                 <div className="flex items-center h-10">

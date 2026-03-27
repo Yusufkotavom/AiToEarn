@@ -5,27 +5,80 @@
 
 'use client'
 
-import { Loader2, Trash2 } from 'lucide-react'
-import { memo, useCallback } from 'react'
+import type { PromotionMaterial } from '@/app/[lng]/brand-promotion/brandPromotionStore/types'
+import { Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { apiCreateMetadataBatch } from '@/api/metadataGeneration'
 import { usePlanDetailStore } from '@/app/[lng]/brand-promotion/planDetailStore'
 import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
 import { confirm } from '@/lib/confirm'
 import { toast } from '@/lib/toast'
+import { useMetadataAiSettingsStore } from '../CreateMaterialModal/metadataAiSettingsStore'
 
 const BatchActionBar = memo(() => {
   const { t } = useTransClient('brandPromotion')
+  const [batchGenerating, setBatchGenerating] = useState(false)
 
-  const { selectedMaterialIds, batchDeleting } = usePlanDetailStore(
+  const { selectedMaterialIds, batchDeleting, materials } = usePlanDetailStore(
     useShallow(state => ({
       selectedMaterialIds: state.selectedMaterialIds,
       batchDeleting: state.batchDeleting,
+      materials: state.materials,
     })),
   )
+  const metadataSettings = useMetadataAiSettingsStore(state => state.settings)
+
+  const selectedMaterials = useMemo(() => {
+    const idSet = new Set(selectedMaterialIds)
+    return materials.filter(item => idSet.has(item.id))
+  }, [materials, selectedMaterialIds])
 
   const exitBatchMode = usePlanDetailStore(state => state.exitBatchMode)
   const batchDeleteMaterials = usePlanDetailStore(state => state.batchDeleteMaterials)
+
+  const extractTags = (material: PromotionMaterial) => {
+    const topicTags = (material.topics || []).filter(Boolean).map(tag => String(tag).replace(/^#/, '').trim())
+    const descTags = (material.desc?.match(/#([\p{L}\p{N}_-]+)/gu) || [])
+      .map(tag => tag.replace(/^#/, '').trim())
+      .filter(Boolean)
+    return Array.from(new Set([...topicTags, ...descTags]))
+  }
+
+  const handleBatchGenerateMetadata = useCallback(async () => {
+    if (selectedMaterials.length === 0)
+      return
+
+    setBatchGenerating(true)
+    try {
+      const response = await apiCreateMetadataBatch({
+        provider: metadataSettings.provider,
+        strategy: metadataSettings.strategy,
+        promptTemplate: metadataSettings.promptTemplate,
+        items: selectedMaterials.map(material => ({
+          materialId: material.id,
+          title: material.title || '',
+          description: material.desc || '',
+          tags: extractTags(material),
+          platforms: (material.accountTypes || []).map(type => String(type)),
+        })),
+      })
+
+      if (response?.code !== 0 || !response?.data?.jobId) {
+        toast.error(response?.message || t('draftManage.batchGenerateMetadataFailed'))
+        return
+      }
+
+      toast.success(t('draftManage.batchGenerateMetadataStarted', { count: selectedMaterials.length }))
+    }
+    catch {
+      toast.error(t('draftManage.batchGenerateMetadataFailed'))
+    }
+    finally {
+      setBatchGenerating(false)
+    }
+  }, [selectedMaterials, metadataSettings, t])
 
   const handleDelete = useCallback(() => {
     const count = selectedMaterialIds.length
@@ -57,6 +110,19 @@ const BatchActionBar = memo(() => {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={exitBatchMode} className="cursor-pointer">
             {t('draftManage.cancel')}
+          </Button>
+          <Button
+            data-testid="draftbox-batch-generate-metadata-btn"
+            variant="outline"
+            size="sm"
+            onClick={handleBatchGenerateMetadata}
+            disabled={selectedMaterialIds.length === 0 || batchGenerating}
+            className="cursor-pointer gap-1.5"
+          >
+            {batchGenerating
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Sparkles className="h-3.5 w-3.5" />}
+            {t('draftManage.batchGenerateMetadata')}
           </Button>
           <Button
             data-testid="draftbox-batch-delete-btn"

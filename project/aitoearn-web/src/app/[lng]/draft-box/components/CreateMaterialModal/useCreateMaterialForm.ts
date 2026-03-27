@@ -1,3 +1,4 @@
+import type { MetadataAiSettings } from './metadataAiSettingsStore'
 import type { MaterialMedia } from '@/api/material'
 /**
  * useCreateMaterialForm - 创建/编辑素材表单逻辑 Hook
@@ -10,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { apiCreateMaterial, apiUpdateMaterial } from '@/api/material'
+import { apiGenerateMetadata } from '@/api/metadataGeneration'
 import { RegionTaskPlatInfoArr } from '@/app/config/platConfig'
 import { PubType } from '@/app/config/publishConfig'
 import { UploadTaskStatusEnum } from '@/components/PublishDialog/compoents/PublishManageUpload/publishManageUpload.enum'
@@ -41,6 +43,7 @@ export function useCreateMaterialForm({
 }: UseCreateMaterialFormProps) {
   const { t } = useTranslation('brandPromotion')
   const [submitting, setSubmitting] = useState(false)
+  const [generatingMetadata, setGeneratingMetadata] = useState(false)
 
   // 获取上传任务状态
   const { tasks, md5Cache, cancelUpload } = usePublishManageUpload(
@@ -315,6 +318,75 @@ export function useCreateMaterialForm({
     }
   }, [groupId, params, isEditing, editingMaterial, onSuccess, onClose, t])
 
+  const generateMetadataByAi = useCallback(async (settings: MetadataAiSettings) => {
+    const extractTags = (text: string) => {
+      return Array.from(
+        new Set(
+          (text.match(/#([\p{L}\p{N}_-]+)/gu) || [])
+            .map(tag => tag.replace(/^#/, '').trim())
+            .filter(Boolean),
+        ),
+      )
+    }
+
+    const fillTemplate = (template: string) => {
+      const tags = extractTags(params.des)
+      const replacements: Record<string, string> = {
+        '{{title}}': params.title.trim(),
+        '{{description}}': params.des.trim(),
+        '{{tags}}': tags.join(', '),
+        '{{platforms}}': params.selectedPlatforms.join(', '),
+      }
+      return Object.entries(replacements).reduce((acc, [key, value]) => acc.split(key).join(value), template)
+    }
+
+    setGeneratingMetadata(true)
+    try {
+      const currentTags = extractTags(params.des)
+      const response = await apiGenerateMetadata({
+        provider: settings.provider,
+        promptTemplate: fillTemplate(settings.promptTemplate),
+        strategy: settings.strategy,
+        item: {
+          materialId: editingMaterial?.id,
+          title: params.title.trim(),
+          description: params.des.trim(),
+          tags: currentTags,
+          platforms: params.selectedPlatforms as string[],
+        },
+      })
+
+      if (response?.code !== 0 || !response?.data) {
+        toast.error(response?.message || t('createMaterial.metadataGenerateFailed'))
+        return false
+      }
+
+      const generated = response.data
+      const nextTitle = settings.strategy === 'replace_all'
+        ? (generated.title || params.title)
+        : (params.title.trim() ? params.title : (generated.title || params.title))
+      const nextDescription = settings.strategy === 'replace_all'
+        ? (generated.description || params.des)
+        : (params.des.trim() ? params.des : (generated.description || params.des))
+      const nextTags = (generated.tags || []).filter(Boolean).slice(0, 10)
+      const tagSuffix = nextTags.length > 0 ? `\n\n${nextTags.map(tag => `#${tag}`).join(' ')}` : ''
+
+      updateParams({
+        title: nextTitle,
+        des: `${nextDescription}${tagSuffix}`.trim(),
+      })
+      toast.success(t('createMaterial.metadataGenerateSuccess'))
+      return true
+    }
+    catch {
+      toast.error(t('createMaterial.metadataGenerateFailed'))
+      return false
+    }
+    finally {
+      setGeneratingMetadata(false)
+    }
+  }, [params, editingMaterial?.id, updateParams, t])
+
   const isFormSubmitting = submitting || externalSubmitting || isUploading
 
   return {
@@ -323,7 +395,9 @@ export function useCreateMaterialForm({
     updateImages,
     updateVideo,
     isSubmitting: isFormSubmitting,
+    isGeneratingMetadata: generatingMetadata,
     handleSubmit,
+    generateMetadataByAi,
     cancelUpload,
   }
 }
