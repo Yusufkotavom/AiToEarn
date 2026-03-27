@@ -13,6 +13,8 @@ const {
 
 const {
   ASSETS_CONFIG,
+  ASSETS_PUBLIC_ENDPOINT,
+  ASSETS_CDN_ENDPOINT,
 } = process.env
 
 const {
@@ -78,6 +80,28 @@ const {
   RELAY_API_KEY,
   RELAY_CALLBACK_URL,
 } = process.env
+
+
+function parseAssetsConfig() {
+  let parsed
+  try {
+    parsed = JSON.parse(ASSETS_CONFIG)
+  }
+  catch (e) {
+    console.error('解析 ASSETS_CONFIG 失败:', e)
+    throw new Error('ASSETS_CONFIG 格式错误')
+  }
+
+  if (ASSETS_PUBLIC_ENDPOINT) {
+    parsed.publicEndpoint = ASSETS_PUBLIC_ENDPOINT
+  }
+
+  if (ASSETS_CDN_ENDPOINT) {
+    parsed.cdnEndpoint = ASSETS_CDN_ENDPOINT
+  }
+
+  return parsed
+}
 
 module.exports = {
   // 应用基础
@@ -254,7 +278,7 @@ module.exports = {
   },
 
   // 外部服务
-  assets: JSON.parse(ASSETS_CONFIG),
+  assets: parseAssetsConfig(),
   mail: {
     transport: {
       host: 'email-smtp.ap-southeast-1.amazonaws.com',
