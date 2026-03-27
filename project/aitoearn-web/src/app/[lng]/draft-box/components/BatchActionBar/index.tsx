@@ -15,7 +15,6 @@ import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
 import { confirm } from '@/lib/confirm'
 import { toast } from '@/lib/toast'
-import { useAiProviderKeysStore } from '@/store/aiProviderKeys'
 import { buildPromptFromTemplate, extractHashTags } from '@/utils/metadataAi'
 import { useMetadataAiSettingsStore } from '../CreateMaterialModal/metadataAiSettingsStore'
 
@@ -31,7 +30,6 @@ const BatchActionBar = memo(() => {
     })),
   )
   const metadataSettings = useMetadataAiSettingsStore(state => state.settings)
-  const providerKeys = useAiProviderKeysStore(state => state.keys)
 
   const selectedMaterials = useMemo(() => {
     const idSet = new Set(selectedMaterialIds)
@@ -57,10 +55,6 @@ const BatchActionBar = memo(() => {
         provider: metadataSettings.provider,
         strategy: metadataSettings.strategy,
         promptTemplate: metadataSettings.promptTemplate,
-        apiKeys: {
-          groqApiKey: providerKeys.groqApiKey || undefined,
-          geminiApiKey: providerKeys.geminiApiKey || undefined,
-        },
         items: selectedMaterials.map((material) => {
           const tags = extractTags(material)
           const platforms = (material.accountTypes || []).map(type => String(type))
@@ -93,7 +87,7 @@ const BatchActionBar = memo(() => {
     finally {
       setBatchGenerating(false)
     }
-  }, [selectedMaterials, metadataSettings, providerKeys, t])
+  }, [selectedMaterials, metadataSettings, t])
 
   const handleDelete = useCallback(() => {
     const count = selectedMaterialIds.length

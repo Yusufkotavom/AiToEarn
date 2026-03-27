@@ -321,7 +321,7 @@
     "metadataPromptTemplateLabel": "Prompt Template",
     "metadataPromptTemplatePlaceholder": "Edit prompt template. You can use {{title}}, {{description}}, {{tags}}, {{platforms}}.",
     "metadataResetPrompt": "Reset Prompt",
-    "apiKeyLocationHint": "API keys are configured in Settings > General > AI Provider API Keys.",
+    "apiKeyLocationHint": "API keys are read from server environment variables (GROQ_API_KEY / GEMINI_API_KEY).",
     "metadataGenerateSuccess": "Metadata generated successfully",
     "metadataGenerateFailed": "Failed to generate metadata",
     "instagramImageAspectRatio": "Instagram image aspect ratio must be between 4:5 and 1.91:1",

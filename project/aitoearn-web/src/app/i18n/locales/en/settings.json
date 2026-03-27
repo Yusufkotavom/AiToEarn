@@ -171,15 +171,8 @@
     "editNotifications": "Edit Notification Settings",
     "changingLanguage": "Switching...",
     "aiProviderKeys": "AI Provider API Keys",
-    "aiProviderKeysDesc": "Configure provider API keys here for metadata generation (Groq / Gemini).",
-    "groqApiKey": "Groq API Key",
-    "geminiApiKey": "Gemini API Key",
-    "apiKeyPlaceholder": "Paste API key",
-    "saveApiKeys": "Save API Keys",
-    "savingApiKeys": "Saving...",
-    "clearApiKeys": "Clear",
-    "apiKeysSaved": "API keys saved",
-    "apiKeysCleared": "API keys cleared"
+    "aiProviderKeysDesc": "Metadata generation uses API keys from server environment variables.",
+    "aiProviderKeysServerOnly": "Set GROQ_API_KEY and/or GEMINI_API_KEY on the backend/server environment."
   },
   "agent": {
     "title": "Agent",

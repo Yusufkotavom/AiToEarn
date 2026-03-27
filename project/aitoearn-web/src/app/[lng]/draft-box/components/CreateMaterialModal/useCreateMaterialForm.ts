@@ -17,7 +17,6 @@ import { PubType } from '@/app/config/publishConfig'
 import { UploadTaskStatusEnum } from '@/components/PublishDialog/compoents/PublishManageUpload/publishManageUpload.enum'
 import { usePublishManageUpload } from '@/components/PublishDialog/compoents/PublishManageUpload/usePublishManageUpload'
 import { toast } from '@/lib/toast'
-import { useAiProviderKeysStore } from '@/store/aiProviderKeys'
 import { buildPromptFromTemplate, extractHashTags } from '@/utils/metadataAi'
 
 export interface FormParams {
@@ -46,7 +45,6 @@ export function useCreateMaterialForm({
   const { t } = useTranslation('brandPromotion')
   const [submitting, setSubmitting] = useState(false)
   const [generatingMetadata, setGeneratingMetadata] = useState(false)
-  const providerKeys = useAiProviderKeysStore(state => state.keys)
 
   // 获取上传任务状态
   const { tasks, md5Cache, cancelUpload } = usePublishManageUpload(
@@ -336,10 +334,6 @@ export function useCreateMaterialForm({
         provider: settings.provider,
         promptTemplate: settings.promptTemplate,
         strategy: settings.strategy,
-        apiKeys: {
-          groqApiKey: providerKeys.groqApiKey || undefined,
-          geminiApiKey: providerKeys.geminiApiKey || undefined,
-        },
         item: {
           materialId: editingMaterial?.id,
           title: params.title.trim(),
@@ -385,7 +379,7 @@ export function useCreateMaterialForm({
     finally {
       setGeneratingMetadata(false)
     }
-  }, [params, editingMaterial?.id, updateParams, t, providerKeys])
+  }, [params, editingMaterial?.id, updateParams, t])
 
   const isFormSubmitting = submitting || externalSubmitting || isUploading
 
