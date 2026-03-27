@@ -41,4 +41,5 @@ export enum AiLogChannel {
   Grok = 'grok',
   AicsoVeo = 'aicso-veo',
   AicsoGrok = 'aicso-grok',
+  Pollinations = 'pollinations',
 }

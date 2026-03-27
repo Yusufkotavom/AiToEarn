@@ -172,6 +172,13 @@ export const aiConfigSchema = z.object({
   }),
   grok: grokConfigSchema,
   aicso: aicsoConfigSchema,
+  pollinations: z.object({
+    imageBaseUrl: z.string().default('https://image.pollinations.ai'),
+    videoBaseUrl: z.string().default('https://video.pollinations.ai'),
+    appUrl: z.string().default('https://api.piiblog.net'),
+    secretKey: z.string().default(''),
+    publishableKey: z.string().default(''),
+  }),
   aideo: aideoPricingConfigSchema,
   gemini: geminiConfigSchema,
   anthropic: z.object({

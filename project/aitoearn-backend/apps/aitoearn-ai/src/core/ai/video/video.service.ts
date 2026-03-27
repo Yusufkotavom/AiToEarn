@@ -3,6 +3,7 @@ import { StorageProvider } from '@yikart/assets'
 import { AppException, ResponseCode, UserType } from '@yikart/common'
 import { AiLog, AiLogChannel, AiLogRepository, AiLogStatus, AiLogType, UserRepository } from '@yikart/mongodb'
 import { TaskStatus } from '../../../common'
+import { config } from '../../../config'
 import {
   Content,
   ContentType,
@@ -130,9 +131,68 @@ export class VideoService {
         return this.handleAicsoVeoGeneration(request, createTaskResponse)
       case AiLogChannel.AicsoGrok:
         return this.handleAicsoGrokGeneration(request, createTaskResponse)
+      case AiLogChannel.Pollinations:
+        return this.handlePollinationsGeneration(request, createTaskResponse)
       default:
         throw new AppException(ResponseCode.InvalidModel)
     }
+  }
+
+  private resolvePollinationsVideoModel(model: string) {
+    const mapping: Record<string, string> = {
+      'pollinations-veo-3.1': 'veo-3.1',
+      'pollinations-seedance': 'seedance',
+    }
+    return mapping[model]
+  }
+
+  private async handlePollinationsGeneration<T>(
+    request: UserVideoGenerationRequestDto,
+    createTaskResponse: (taskId: string, points: number) => T,
+  ) {
+    const { userId, userType, model, prompt, duration } = request
+    const vendorModel = this.resolvePollinationsVideoModel(model)
+    if (!vendorModel) {
+      throw new AppException(ResponseCode.InvalidModel)
+    }
+
+    const points = await this.calculateVideoGenerationPrice({ model, userId, userType, duration })
+    const imageUrl = Array.isArray(request.image) ? request.image[0] : request.image
+    const [width, height] = (request.size || '720x1280').split('x')
+
+    const url = new URL(`${config.ai.pollinations.videoBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
+    url.searchParams.set('model', vendorModel)
+    url.searchParams.set('width', width || '720')
+    url.searchParams.set('height', height || '1280')
+    if (imageUrl) {
+      url.searchParams.set('image', imageUrl)
+    }
+    if (duration) {
+      url.searchParams.set('duration', String(duration))
+    }
+    if (config.ai.pollinations.publishableKey) {
+      url.searchParams.set('token', config.ai.pollinations.publishableKey)
+    }
+    if (config.ai.pollinations.appUrl) {
+      url.searchParams.set('referrer', config.ai.pollinations.appUrl)
+    }
+
+    const startedAt = new Date()
+    const aiLog = await this.aiLogRepo.create({
+      userId,
+      userType,
+      model,
+      channel: AiLogChannel.Pollinations,
+      type: AiLogType.Video,
+      points,
+      request: { model, prompt, image: imageUrl, size: request.size, duration },
+      response: { videoUrl: url.toString() },
+      status: AiLogStatus.Success,
+      startedAt,
+      duration: 1,
+    })
+
+    return createTaskResponse(aiLog.id, points)
   }
 
   /**
@@ -336,6 +396,12 @@ export class VideoService {
         return this.aicsoGrokVideoService.extractInput(request)
       case AiLogChannel.Gemini:
         return this.geminiVideoService.extractInput(request)
+      case AiLogChannel.Pollinations:
+        return {
+          prompt: (request['prompt'] as string) || '',
+          image: request['image'] as string | undefined,
+          duration: request['duration'] as number | undefined,
+        }
       default:
         return { prompt: '' }
     }
@@ -393,6 +459,12 @@ export class VideoService {
         return this.aicsoGrokVideoService.getTaskResult(aiLog.response as unknown as AicsoGrokVideoCallbackDto)
       case AiLogChannel.Gemini:
         return this.geminiVideoService.getTaskResult(aiLog.response as unknown as GeminiVeoVideoCallbackDto)
+      case AiLogChannel.Pollinations:
+        return {
+          status: TaskStatus.Success,
+          videoUrl: aiLog.response?.['videoUrl'] as string | undefined,
+          error: undefined,
+        }
       default:
         throw new AppException(ResponseCode.InvalidAiTaskId)
     }

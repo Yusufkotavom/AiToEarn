@@ -8,6 +8,7 @@ import parseDataUri from 'data-urls'
 import OpenAI from 'openai'
 import QRCode from 'qrcode'
 import sharp from 'sharp'
+import { config } from '../../../config'
 
 import { GeminiService } from '../libs/gemini/gemini.service'
 import { OpenaiService } from '../libs/openai'
@@ -27,6 +28,11 @@ import {
 } from './image.dto'
 
 type Uploadable = File | Response
+const pollinationsImageModelMapping: Record<string, string> = {
+  'pollinations-flux': 'flux',
+  'pollinations-gptimage': 'gptimage',
+  'pollinations-imagen': 'imagen',
+}
 
 @Injectable()
 export class ImageService {
@@ -105,6 +111,13 @@ export class ImageService {
       throw new BadRequestException('userId is required')
     }
 
+    if (params.model in pollinationsImageModelMapping) {
+      return this.pollinationsGeneration({
+        ...params,
+        user,
+      })
+    }
+
     if (params.model === 'gpt-image-1') {
       delete params.response_format
       delete params.style
@@ -134,6 +147,38 @@ export class ImageService {
       ...result,
       list: result.data || [],
     }
+  }
+
+  /**
+   * Pollinations 图片生成（返回直链）
+   */
+  private async pollinationsGeneration(request: ImageGenerationDto): Promise<{ created: number, list: Array<{ url: string }> }> {
+    const model = pollinationsImageModelMapping[request.model]
+    if (!model) {
+      throw new BadRequestException('Unsupported pollinations model')
+    }
+
+    const [width, height] = (request.size || '1024x1024').split('x')
+    const imageBaseUrl = config.ai.pollinations.imageBaseUrl
+    const count = request.n || 1
+
+    const list = Array.from({ length: count }).map((_, index) => {
+      const url = new URL(`${imageBaseUrl}/prompt/${encodeURIComponent(request.prompt)}`)
+      url.searchParams.set('model', model)
+      url.searchParams.set('width', width || '1024')
+      url.searchParams.set('height', height || '1024')
+      url.searchParams.set('nologo', 'true')
+      url.searchParams.set('seed', String(Date.now() + index))
+      if (config.ai.pollinations.publishableKey) {
+        url.searchParams.set('token', config.ai.pollinations.publishableKey)
+      }
+      if (config.ai.pollinations.appUrl) {
+        url.searchParams.set('referrer', config.ai.pollinations.appUrl)
+      }
+      return { url: url.toString() }
+    })
+
+    return { created: Math.floor(Date.now() / 1000), list }
   }
 
   /**
