@@ -177,9 +177,22 @@ OAuth callback URL format: `https://{APP_DOMAIN}/api/plat/{platform}/auth/back`
 
 Docker Compose includes [RustFS](https://github.com/rustfs/rustfs) as built-in S3-compatible storage. **Works out of the box.**
 
+> RustFS is **self-hosted/local object storage** (inside your Docker deployment), not a public managed cloud service by default.
+> It can be exposed online only if you publish ports/domain yourself.
+
 **RustFS Console**: http://localhost:9001
 - Default username: `rustfsadmin`
 - Default password: `rustfsadmin`
+
+#### RustFS vs Cloudflare R2 (quick comparison)
+
+| Item | RustFS (self-hosted) | Cloudflare R2 (managed cloud) |
+|------|----------------------|--------------------------------|
+| Service type | Run by you in Docker/VPS | Hosted by Cloudflare |
+| Internet-ready | Not by default (local/internal first) | Yes (public cloud endpoint) |
+| Ops burden | You manage backup, scaling, uptime | Cloudflare manages infra |
+| Cost model | Infra/server cost on your side | R2 billing by storage/ops/egress policy |
+| Best for | Local dev, private/self-hosted setups | Production internet apps, global access |
 
 <details>
 <summary>Changing RustFS credentials or switching to external S3/OSS</summary>
@@ -202,7 +215,33 @@ AWS S3 example:
 ASSETS_CONFIG: '{"provider":"s3","region":"ap-southeast-1","bucketName":"your-bucket","endpoint":"https://s3.ap-southeast-1.amazonaws.com","accessKeyId":"xxx","secretAccessKey":"xxx","cdnEndpoint":"https://your-cdn.com"}'
 ```
 
+Cloudflare R2 example:
+
+```yaml
+ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"your-r2-bucket","endpoint":"https://<accountid>.r2.cloudflarestorage.com","publicEndpoint":"https://pub-<hash>.r2.dev","cdnEndpoint":"https://cdn.your-domain.com","accessKeyId":"<r2-access-key-id>","secretAccessKey":"<r2-secret-access-key>","forcePathStyle":true,"cloudflare":{"accountId":"<cf-account-id>","queueId":"<cf-queue-id>","apiToken":"<cf-api-token>"}}'
+```
+
 </details>
+
+#### Quick setup: local storage first (RustFS)
+
+1. Keep default `rustfs` + `rustfs-init` services enabled in `docker-compose.yml`.
+2. Keep `ASSETS_CONFIG` endpoint as `http://rustfs.local:9000` in both `aitoearn-ai` and `aitoearn-server`.
+3. Start services: `docker compose up -d`.
+4. Verify:
+   - RustFS Console: `http://localhost:9001`
+   - Bucket `aitoearn` exists (created by `rustfs-init`).
+
+#### Quick setup: switch to Cloudflare R2
+
+1. Create an R2 bucket and API Token in Cloudflare dashboard.
+2. Replace `ASSETS_CONFIG` in both `aitoearn-ai` and `aitoearn-server` using the R2 example above.
+3. Optional but recommended for event-driven confirmation:
+   - Create Cloudflare Queue and put `cloudflare.accountId/queueId/apiToken` in `ASSETS_CONFIG`.
+4. Restart backend services:
+   - `docker compose up -d aitoearn-ai aitoearn-server`
+5. Optional: stop local RustFS if no longer needed:
+   - `docker compose stop rustfs rustfs-init`
 
 ### Other Optional Services
 

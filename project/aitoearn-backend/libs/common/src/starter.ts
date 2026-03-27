@@ -92,6 +92,22 @@ export async function startApplication(Module: Type<unknown>, config: BaseConfig
       pinoHttp: [
         {
           level: 'trace',
+          redact: {
+            paths: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'req.headers["set-cookie"]',
+              'req.headers["proxy-authorization"]',
+              'req.headers["x-api-key"]',
+              'req.headers["cf-access-jwt-assertion"]',
+              'req.body.password',
+              'req.body.token',
+              'req.body.accessToken',
+              'req.body.refreshToken',
+              'res.headers["set-cookie"]',
+            ],
+            censor: '[REDACTED]',
+          },
           genReqId: (req, res) => {
             const requestId = req.headers['x-request-id'] || reqIdGenerator()
             req.headers['x-request-id'] = requestId
