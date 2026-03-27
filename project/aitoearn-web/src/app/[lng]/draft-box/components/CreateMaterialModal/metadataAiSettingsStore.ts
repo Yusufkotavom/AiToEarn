@@ -3,8 +3,32 @@ import { createPersistStore } from '@/utils/createPersistStore'
 export type MetadataAiProvider = 'auto' | 'groq' | 'gemini'
 export type MetadataApplyStrategy = 'replace_empty' | 'replace_all'
 
+export const DEFAULT_GROQ_MODEL = process.env.NEXT_PUBLIC_METADATA_GROQ_MODEL || 'llama-3.3-70b-versatile'
+export const DEFAULT_GEMINI_MODEL = process.env.NEXT_PUBLIC_METADATA_GEMINI_MODEL || 'gemini-2.0-flash'
+
+export const METADATA_PROVIDER_MODELS: Record<Exclude<MetadataAiProvider, 'auto'>, string[]> = {
+  groq: [
+    DEFAULT_GROQ_MODEL,
+    'llama-3.1-70b-versatile',
+    'mixtral-8x7b-32768',
+  ],
+  gemini: [
+    DEFAULT_GEMINI_MODEL,
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-pro',
+  ],
+}
+
+export function getDefaultModelByProvider(provider: MetadataAiProvider): string {
+  if (provider === 'gemini') {
+    return DEFAULT_GEMINI_MODEL
+  }
+  return DEFAULT_GROQ_MODEL
+}
+
 export interface MetadataAiSettings {
   provider: MetadataAiProvider
+  model?: string
   promptTemplate: string
   strategy: MetadataApplyStrategy
 }
@@ -27,7 +51,8 @@ Rules:
 4) Return 5-10 relevant tags.`
 
 const DEFAULT_SETTINGS: MetadataAiSettings = {
-  provider: 'auto',
+  provider: 'groq',
+  model: DEFAULT_GROQ_MODEL,
   promptTemplate: DEFAULT_METADATA_PROMPT_TEMPLATE,
   strategy: 'replace_empty',
 }
@@ -42,11 +67,19 @@ export const useMetadataAiSettingsStore = createPersistStore(
   } as MetadataAiSettingsState,
   (set, get) => ({
     updateSettings(partial: Partial<MetadataAiSettings>) {
+      const currentSettings = get().settings
+      const nextProvider = partial.provider ?? currentSettings.provider
+      const merged = {
+        ...currentSettings,
+        ...partial,
+      }
+
+      if ((partial.provider && !partial.model) || !merged.model?.trim()) {
+        merged.model = getDefaultModelByProvider(nextProvider)
+      }
+
       set({
-        settings: {
-          ...get().settings,
-          ...partial,
-        },
+        settings: merged,
       })
     },
     resetSettings() {
@@ -55,7 +88,7 @@ export const useMetadataAiSettingsStore = createPersistStore(
   }),
   {
     name: 'create-material-metadata-ai-settings',
-    version: 1,
+    version: 2,
   },
   'localStorage',
 )

@@ -290,6 +290,9 @@
     "batchGenerateMetadata": "Generate Metadata",
     "batchGenerateMetadataStarted": "Started metadata generation for {{count}} drafts",
     "batchGenerateMetadataFailed": "Failed to start metadata generation",
+    "batchGenerateProgress": "Metadata batch: {{success}} success / {{failed}} failed / {{total}} total",
+    "batchGenerateRetryFailed": "Retry failed",
+    "batchGenerateRetryStarted": "Retry started for {{count}} failed drafts",
     "cancel": "Cancel",
     "generationDetail": "Generation History"
   },
@@ -315,6 +318,8 @@
     "metadataAiSettings": "AI Metadata Settings",
     "metadataAiSettingsTitle": "AI Metadata Generation Settings",
     "metadataProviderLabel": "Provider",
+    "metadataModelLabel": "Model",
+    "metadataModelPlaceholder": "Enter model name (default: Groq)",
     "metadataApplyStrategyLabel": "Apply Strategy",
     "metadataApplyReplaceEmpty": "Fill Empty Fields Only",
     "metadataApplyReplaceAll": "Replace All Fields",
