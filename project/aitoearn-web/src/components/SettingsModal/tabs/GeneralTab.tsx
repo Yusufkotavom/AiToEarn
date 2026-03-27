@@ -14,6 +14,7 @@ import { useTransClient } from '@/app/i18n/client'
 import { cookieName } from '@/app/i18n/settings'
 import NotificationControlModal from '@/components/notification/NotificationControlModal'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -23,7 +24,9 @@ import {
 } from '@/components/ui/select'
 import { useGetClientLng } from '@/hooks/useSystem'
 import { getAllLanguageOptions } from '@/lib/i18n/languageConfig'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { useAiProviderKeysStore } from '@/store/aiProviderKeys'
 
 import darkColorImg from '../images/darkColor.png'
 import followSystemImg from '../images/followSystem.png'
@@ -46,9 +49,17 @@ export function GeneralTab() {
   const lng = useGetClientLng()
   const [controlModalVisible, setControlModalVisible] = useState(false)
   const [isChangingLanguage, setIsChangingLanguage] = useState(false)
+  const [savingApiKeys, setSavingApiKeys] = useState(false)
 
   // 使用 next-themes 管理主题
   const { theme, setTheme } = useTheme()
+  const { keys, updateKeys, clearKeys } = useAiProviderKeysStore(state => ({
+    keys: state.keys,
+    updateKeys: state.updateKeys,
+    clearKeys: state.clearKeys,
+  }))
+  const [groqApiKey, setGroqApiKey] = useState(keys.groqApiKey)
+  const [geminiApiKey, setGeminiApiKey] = useState(keys.geminiApiKey)
 
   const handleLanguageChange = async (newLng: string) => {
     if (isChangingLanguage || newLng === lng)
@@ -70,6 +81,20 @@ export function GeneralTab() {
     catch (error) {
       console.error('Language change failed:', error)
       setIsChangingLanguage(false)
+    }
+  }
+
+  const handleSaveApiKeys = async () => {
+    setSavingApiKeys(true)
+    try {
+      updateKeys({
+        groqApiKey: groqApiKey.trim(),
+        geminiApiKey: geminiApiKey.trim(),
+      })
+      toast.success(t('general.apiKeysSaved'))
+    }
+    finally {
+      setSavingApiKeys(false)
     }
   }
 
@@ -156,6 +181,53 @@ export function GeneralTab() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* AI Provider API Keys */}
+      <div className="space-y-3">
+        <div>
+          <h4 className="text-sm font-medium text-foreground">{t('general.aiProviderKeys')}</h4>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('general.aiProviderKeysDesc')}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">{t('general.groqApiKey')}</label>
+            <Input
+              type="password"
+              autoComplete="off"
+              value={groqApiKey}
+              placeholder={t('general.apiKeyPlaceholder')}
+              onChange={e => setGroqApiKey(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">{t('general.geminiApiKey')}</label>
+            <Input
+              type="password"
+              autoComplete="off"
+              value={geminiApiKey}
+              placeholder={t('general.apiKeyPlaceholder')}
+              onChange={e => setGeminiApiKey(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={handleSaveApiKeys} disabled={savingApiKeys}>
+            {savingApiKeys ? t('general.savingApiKeys') : t('general.saveApiKeys')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              clearKeys()
+              setGroqApiKey('')
+              setGeminiApiKey('')
+              toast.success(t('general.apiKeysCleared'))
+            }}
+          >
+            {t('general.clearApiKeys')}
+          </Button>
+        </div>
       </div>
 
       {/* 邮件通知控制模态框 */}

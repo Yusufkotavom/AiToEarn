@@ -1,3 +1,4 @@
+import type { MetadataAiSettings } from './metadataAiSettingsStore'
 import type { MaterialMedia } from '@/api/material'
 /**
  * useCreateMaterialForm - 创建/编辑素材表单逻辑 Hook
@@ -10,11 +11,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { apiCreateMaterial, apiUpdateMaterial } from '@/api/material'
+import { apiGenerateMetadata } from '@/api/metadataGeneration'
 import { RegionTaskPlatInfoArr } from '@/app/config/platConfig'
 import { PubType } from '@/app/config/publishConfig'
 import { UploadTaskStatusEnum } from '@/components/PublishDialog/compoents/PublishManageUpload/publishManageUpload.enum'
 import { usePublishManageUpload } from '@/components/PublishDialog/compoents/PublishManageUpload/usePublishManageUpload'
 import { toast } from '@/lib/toast'
+import { useAiProviderKeysStore } from '@/store/aiProviderKeys'
+import { buildPromptFromTemplate, extractHashTags } from '@/utils/metadataAi'
 
 export interface FormParams {
   title: string
@@ -41,6 +45,8 @@ export function useCreateMaterialForm({
 }: UseCreateMaterialFormProps) {
   const { t } = useTranslation('brandPromotion')
   const [submitting, setSubmitting] = useState(false)
+  const [generatingMetadata, setGeneratingMetadata] = useState(false)
+  const providerKeys = useAiProviderKeysStore(state => state.keys)
 
   // 获取上传任务状态
   const { tasks, md5Cache, cancelUpload } = usePublishManageUpload(
@@ -315,6 +321,72 @@ export function useCreateMaterialForm({
     }
   }, [groupId, params, isEditing, editingMaterial, onSuccess, onClose, t])
 
+  const generateMetadataByAi = useCallback(async (settings: MetadataAiSettings) => {
+    setGeneratingMetadata(true)
+    try {
+      const currentTags = extractHashTags(params.des)
+      const renderedPrompt = buildPromptFromTemplate(settings.promptTemplate, {
+        title: params.title,
+        description: params.des,
+        tags: currentTags,
+        platforms: params.selectedPlatforms.map(type => String(type)),
+      })
+
+      const response = await apiGenerateMetadata({
+        provider: settings.provider,
+        promptTemplate: settings.promptTemplate,
+        strategy: settings.strategy,
+        apiKeys: {
+          groqApiKey: providerKeys.groqApiKey || undefined,
+          geminiApiKey: providerKeys.geminiApiKey || undefined,
+        },
+        item: {
+          materialId: editingMaterial?.id,
+          title: params.title.trim(),
+          description: params.des.trim(),
+          tags: currentTags,
+          platforms: params.selectedPlatforms as string[],
+          prompt: renderedPrompt,
+        },
+      })
+
+      if (response?.code !== 0 || !response?.data) {
+        toast.error(response?.message || t('createMaterial.metadataGenerateFailed'))
+        return false
+      }
+
+      const generated = response.data
+      const nextTitle = settings.strategy === 'replace_all'
+        ? (generated.title || params.title)
+        : (params.title.trim() ? params.title : (generated.title || params.title))
+      const nextDescription = settings.strategy === 'replace_all'
+        ? (generated.description || params.des)
+        : (params.des.trim() ? params.des : (generated.description || params.des))
+      const nextTags = (generated.tags || []).filter(Boolean).slice(0, 10)
+      const shouldAppendTags
+        = settings.strategy === 'replace_all'
+          ? true
+          : !params.des.trim()
+      const tagSuffix = shouldAppendTags && nextTags.length > 0
+        ? `\n\n${nextTags.map(tag => `#${tag}`).join(' ')}`
+        : ''
+
+      updateParams({
+        title: nextTitle,
+        des: `${nextDescription}${tagSuffix}`.trim(),
+      })
+      toast.success(t('createMaterial.metadataGenerateSuccess'))
+      return true
+    }
+    catch {
+      toast.error(t('createMaterial.metadataGenerateFailed'))
+      return false
+    }
+    finally {
+      setGeneratingMetadata(false)
+    }
+  }, [params, editingMaterial?.id, updateParams, t, providerKeys])
+
   const isFormSubmitting = submitting || externalSubmitting || isUploading
 
   return {
@@ -323,7 +395,9 @@ export function useCreateMaterialForm({
     updateImages,
     updateVideo,
     isSubmitting: isFormSubmitting,
+    isGeneratingMetadata: generatingMetadata,
     handleSubmit,
+    generateMetadataByAi,
     cancelUpload,
   }
 }

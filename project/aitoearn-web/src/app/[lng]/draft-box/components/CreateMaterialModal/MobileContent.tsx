@@ -6,7 +6,7 @@
 
 import type { CreateMaterialModalProps } from './index'
 import type { IImgFile, IVideoFile } from '@/components/PublishDialog/publishDialog.type'
-import { Bot, Play, TriangleAlert, X } from 'lucide-react'
+import { Bot, Play, Settings2, Sparkles, TriangleAlert, X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { memo, useCallback, useMemo, useState } from 'react'
@@ -28,6 +28,8 @@ import { Button } from '@/components/ui/button'
 import { DialogTitle } from '@/components/ui/dialog'
 import { toast } from '@/lib/toast'
 import InlinePlatformSelector from './InlinePlatformSelector'
+import MetadataAiSettingsDialog from './MetadataAiSettingsDialog'
+import { useMetadataAiSettingsStore } from './metadataAiSettingsStore'
 import { useCreateMaterialForm } from './useCreateMaterialForm'
 import { useMaterialValidation } from './useMaterialValidation'
 import './uploadItemTransition.css'
@@ -43,6 +45,8 @@ const MobileContent = memo(
     const { t } = useTranslation('brandPromotion')
     const { t: tPublish } = useTransClient('publish')
     const router = useRouter()
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    const [draftPromptTemplate, setDraftPromptTemplate] = useState('')
 
     const {
       params,
@@ -50,7 +54,9 @@ const MobileContent = memo(
       updateImages,
       updateVideo,
       isSubmitting: submitting,
+      isGeneratingMetadata,
       handleSubmit,
+      generateMetadataByAi,
       cancelUpload,
     } = useCreateMaterialForm({
       groupId,
@@ -59,6 +65,7 @@ const MobileContent = memo(
       onClose,
       onSuccess,
     })
+    const { settings, updateSettings } = useMetadataAiSettingsStore()
 
     const { warnings, effectiveLimits } = useMaterialValidation(params, params.selectedPlatforms)
 
@@ -196,6 +203,26 @@ const MobileContent = memo(
 
     return (
       <>
+        <MetadataAiSettingsDialog
+          open={settingsOpen}
+          provider={settings.provider}
+          strategy={settings.strategy}
+          promptTemplate={draftPromptTemplate || settings.promptTemplate}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (open) {
+              setDraftPromptTemplate(settings.promptTemplate)
+            }
+          }}
+          onProviderChange={provider => updateSettings({ provider })}
+          onStrategyChange={strategy => updateSettings({ strategy })}
+          onPromptTemplateChange={setDraftPromptTemplate}
+          onSave={() => {
+            updateSettings({ promptTemplate: draftPromptTemplate || settings.promptTemplate })
+            setSettingsOpen(false)
+          }}
+        />
+
         {/* 弹窗层 */}
         <VideoCoverSeting
           videoCoverSetingModal={videoCoverSetingModal}
@@ -445,23 +472,47 @@ const MobileContent = memo(
         </div>
 
         {/* 底部栏 */}
-        <div className="flex items-center justify-between px-4 h-14 border-t border-border shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
-            onClick={(e) => {
-              e.stopPropagation()
-              router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
-            }}
-          >
-            <Bot className="mr-1 h-4 w-4" />
-            {t('detail.agentGenerate')}
-          </Button>
+        <div className="px-4 py-2 border-t border-border shrink-0 space-y-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={isGeneratingMetadata}
+              onClick={async () => {
+                await generateMetadataByAi(settings)
+              }}
+            >
+              <Sparkles className="mr-1 h-4 w-4" />
+              {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="px-3"
+              onClick={() => {
+                setDraftPromptTemplate(settings.promptTemplate)
+                setSettingsOpen(true)
+              }}
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-3"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
+              }}
+            >
+              <Bot className="h-4 w-4" />
+            </Button>
+          </div>
           <Button
             onClick={handleSubmit}
             disabled={submitting}
-            className="cursor-pointer"
+            className="cursor-pointer w-full"
           >
             {t('common.confirm')}
           </Button>

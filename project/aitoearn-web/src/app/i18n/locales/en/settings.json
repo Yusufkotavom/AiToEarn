@@ -169,7 +169,17 @@
     "notifications": "Email Notifications",
     "notificationsDesc": "Manage your email notification preferences",
     "editNotifications": "Edit Notification Settings",
-    "changingLanguage": "Switching..."
+    "changingLanguage": "Switching...",
+    "aiProviderKeys": "AI Provider API Keys",
+    "aiProviderKeysDesc": "Configure provider API keys here for metadata generation (Groq / Gemini).",
+    "groqApiKey": "Groq API Key",
+    "geminiApiKey": "Gemini API Key",
+    "apiKeyPlaceholder": "Paste API key",
+    "saveApiKeys": "Save API Keys",
+    "savingApiKeys": "Saving...",
+    "clearApiKeys": "Clear",
+    "apiKeysSaved": "API keys saved",
+    "apiKeysCleared": "API keys cleared"
   },
   "agent": {
     "title": "Agent",

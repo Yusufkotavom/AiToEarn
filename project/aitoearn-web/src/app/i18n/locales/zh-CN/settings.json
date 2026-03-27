@@ -169,7 +169,17 @@
     "notifications": "邮件通知",
     "notificationsDesc": "管理您的邮件通知偏好设置",
     "editNotifications": "设置通知",
-    "changingLanguage": "切换中..."
+    "changingLanguage": "切换中...",
+    "aiProviderKeys": "AI 提供商 API Key",
+    "aiProviderKeysDesc": "在这里配置元数据生成功能使用的 Provider API Key（Groq / Gemini）。",
+    "groqApiKey": "Groq API Key",
+    "geminiApiKey": "Gemini API Key",
+    "apiKeyPlaceholder": "粘贴 API Key",
+    "saveApiKeys": "保存 API Key",
+    "savingApiKeys": "保存中...",
+    "clearApiKeys": "清空",
+    "apiKeysSaved": "API Key 已保存",
+    "apiKeysCleared": "API Key 已清空"
   },
   "agent": {
     "title": "Agent",
