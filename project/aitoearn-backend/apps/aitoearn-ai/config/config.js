@@ -337,7 +337,7 @@ module.exports = {
             durations: [15],
             maxInputImages: 1,
             aspectRatios: ['2:3', '3:2', '1:1'],
-            tags: ['Sale'],
+            tags: [{ 'en-US': 'Sale', 'zh-CN': '促销' }],
             defaults: {
               duration: 15,
               aspectRatio: '9:16',
@@ -355,7 +355,7 @@ module.exports = {
             durations: [8],
             maxInputImages: 3,
             aspectRatios: ['9:16', '16:9', '1:1'],
-            tags: ['Sale'],
+            tags: [{ 'en-US': 'Sale', 'zh-CN': '促销' }],
             defaults: {
               duration: 8,
               aspectRatio: '9:16',
@@ -373,7 +373,7 @@ module.exports = {
             durations: [8],
             maxInputImages: 3,
             aspectRatios: ['9:16', '16:9', '1:1'],
-            tags: ['Sale'],
+            tags: [{ 'en-US': 'Sale', 'zh-CN': '促销' }],
             defaults: {
               duration: 8,
               aspectRatio: '9:16',
