@@ -116,7 +116,7 @@ export function apiCreateImageTextDraft(data: {
 
 /** 获取图片模型定价信息 */
 export function apiGetDraftGenerationPricing() {
-  return http.get<DraftGenerationPricingVo>('ai/draft-generation/pricing')
+  return http.get<DraftGenerationPricingVo>('ai/draft-generation/pricing', undefined, true)
 }
 
 /**
