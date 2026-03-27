@@ -81,7 +81,6 @@ const {
   RELAY_CALLBACK_URL,
 } = process.env
 
-
 function parseAssetsConfig() {
   let parsed
   try {
