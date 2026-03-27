@@ -73,7 +73,7 @@
     "storeNotActive": "店铺正在初始化中，请稍后再试",
     "storeNotLinked": "您未关联店铺，请先关联店铺再试用AI批量生成草稿",
     "promptTitle": "自定义提示词",
-    "creditsPerSecond": "{{credits}}积分1s",
+    "creditsPerSecondValue": "{{credits}}积分1s",
     "totalCredits": "预计消耗 {{total}} 积分",
     "insufficientBalance": "本次生成预计消耗{{total}}积分，您剩余{{balance}}积分，余额不足，请充值后重试！",
     "linkStoreFirst": "请先关联店铺",

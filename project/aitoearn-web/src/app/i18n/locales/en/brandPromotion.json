@@ -73,7 +73,7 @@
     "storeNotActive": "Store is initializing, please try again later",
     "storeNotLinked": "No store linked. Please link a store first to use AI batch generation.",
     "promptTitle": "Custom Prompt",
-    "creditsPerSecond": "{{credits}} credits/1s",
+    "creditsPerSecondValue": "{{credits}} credits/1s",
     "totalCredits": "Est. {{total}} credits",
     "insufficientBalance": "This generation requires {{total}} credits, but you only have {{balance}} credits. Please top up and try again.",
     "linkStoreFirst": "Please link a store first",
