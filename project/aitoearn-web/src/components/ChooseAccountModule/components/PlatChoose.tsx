@@ -9,33 +9,33 @@ import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef, useS
 import { useShallow } from 'zustand/react/shallow'
 import { AccountPlatInfoMap } from '@/app/config/platConfig'
 import useCssVariables from '@/app/hooks/useCssVariables'
+import { useTransClient } from '@/app/i18n/client'
 import { useAccountStore } from '@/store/account'
 import styles from '../chooseAccountModule.module.scss'
 
 export interface IPlatChooseRef {
   /**
-   * 恢复选中状态
-   * @param choosedAccounts
+   * Restore selected state
    */
   recover: () => void
-  // 每次关闭弹框的时候需要初始化一些状态
+  // Reset transient state when modal closes
   init: () => void
-  // 设置选中平台
+  // Set active platform tab
   setActivePlat: (activePlat: PlatType) => void
 }
 
 export interface IPlatChooseProps {
   pubType: PubType
-  // 默认选择的平台
+  // default selected platform
   defaultPlat?: PlatType
   onChange?: (choosedAcounts: SocialAccount[], choosedAcount: SocialAccount) => void
-  // 外部传入的已经选中的数据，这个值只有在确认更改才会更新
+  // externally controlled selected accounts; updated only on confirm
   choosedAccounts?: SocialAccount[]
-  // 按平台 是否禁用多选，true=禁用，false=不禁用
+  // whether multi-select is disabled
   disableAllSelect?: boolean
-  // 可选择的平台，默认为全部
+  // allowed platforms (default: all)
   allowPlatSet?: Set<PlatType>
-  // 是否可以取消已经选择的账户，默认为 false
+  // whether selected accounts can be deselected
   isCancelChooseAccount?: boolean
 }
 
@@ -53,16 +53,17 @@ const PlatChoose = memo(
       }: IPlatChooseProps,
       ref: ForwardedRef<IPlatChooseRef>,
     ) => {
+      const { t } = useTransClient('account')
       const cssVars = useCssVariables()
-      // 所有账户数据
+      // all accounts grouped by platform
       const [accountMap, setAccountMap] = useState<Map<PlatType, SocialAccount[]>>(new Map())
-      // 当前选择的平台
+      // current active platform
       const [activePlat, setActivePlat] = useState<PlatType | undefined>()
-      // 当前选择的账户数据
+      // selected accounts by platform
       const [choosedAcountMap, setChoosedAcountMap] = useState<Map<PlatType, SocialAccount[]>>(
         new Map(),
       )
-      // 每次change操作的数据
+      // most recent changed account
       const recentData = useRef<SocialAccount>()
       const { accountList } = useAccountStore(
         useShallow(state => ({
@@ -70,7 +71,7 @@ const PlatChoose = memo(
         })),
       )
 
-      // 经过 allowPlatSet 过滤后的账户数据
+      // accounts filtered by allowPlatSet
       const accountMapLast = useMemo(() => {
         const newVal = new Map<PlatType, SocialAccount[]>()
         for (const [accountType, accountList] of accountMap) {
@@ -81,7 +82,7 @@ const PlatChoose = memo(
         return newVal
       }, [accountMap, allowPlatSet])
 
-      // 默认平台设置
+      // initialize default active platform
       useEffect(() => {
         const defaultPlatData = Array.from(accountMapLast).find(([plat, data]) => data.length !== 0)
         setActivePlat(
@@ -90,7 +91,7 @@ const PlatChoose = memo(
         )
       }, [accountMapLast])
 
-      // 所有平台的账户数据
+      // all available accounts across platforms
       const getAllAccountList = useMemo(() => {
         const allAccountList = []
         for (const [_, accountList] of accountMapLast) {
@@ -99,7 +100,7 @@ const PlatChoose = memo(
         return allAccountList
       }, [accountMapLast])
 
-      // 当前选择的所有平台的账户数据
+      // all selected accounts across platforms
       const getChoosedAllAccountList = useMemo(() => {
         const allAccountList = []
         for (const [_, accountList] of choosedAcountMap) {
@@ -108,13 +109,13 @@ const PlatChoose = memo(
         return allAccountList
       }, [choosedAcountMap])
 
-      // 当前平台的所有用户数据
+      // all accounts under current platform
       const currAccountList = useMemo(
         () => (activePlat && accountMapLast.get(activePlat)) || [],
         [activePlat, accountMapLast],
       )
 
-      // 当前平台的选择账户的数据
+      // selected accounts under current platform
       const currChoosedAcount = useMemo(
         () => (activePlat && choosedAcountMap.get(activePlat)) || [],
         [activePlat, choosedAcountMap],
@@ -128,7 +129,7 @@ const PlatChoose = memo(
               newMap.set(key, [])
             }
           })
-          // 添加渲染账户数据值
+          // assign accounts into platform buckets
           accountList.map((v) => {
             newMap.get(v.type)?.push(v)
           })
@@ -144,7 +145,7 @@ const PlatChoose = memo(
         }
       }, [])
 
-      // change事件
+      // notify on selection changes
       useEffect(() => {
         if (!recentData.current)
           return
@@ -161,7 +162,7 @@ const PlatChoose = memo(
       }
 
       useImperativeHandle(ref, () => ({
-        // 恢复到本次操作之前的状态
+        // restore state from props
         recover() {
           if (!choosedAccounts || choosedAccounts.length === 0)
             return setChoosedAcountMap(new Map())
@@ -187,10 +188,10 @@ const PlatChoose = memo(
               <Empty
                 description={(
                   <>
-                    无账户数据，请前往
+                    {t('chooseAccount.noAccountsPrefix')}
                     {' '}
-                    <Link href="/accounts">账户</Link>
-                    添加数据
+                    <Link href="/accounts">{t('accountManager')}</Link>
+                    {t('chooseAccount.noAccountsSuffix')}
                   </>
                 )}
               />
@@ -223,7 +224,7 @@ const PlatChoose = memo(
                     }}
                     checked={getAllAccountList.length === getChoosedAllAccountList.length}
                   >
-                    选择所有平台账户
+                    {t('chooseAccount.selectAllPlatformAccounts')}
                   </Checkbox>
                 )}
                 <ConfigProvider
@@ -285,23 +286,23 @@ const PlatChoose = memo(
                         }}
                         checked={currChoosedAcount.length === currAccountList.length}
                       >
-                        全选 已选择
+                        {t('chooseAccount.selectAllSelected')}
                         {' '}
                         {currChoosedAcount.length}
                         {' '}
-                        个
+                        {t('chooseAccount.countUnit')}
                       </Checkbox>
                     ) : (
                       <span>
-                        已选择
+                        {t('userManage.selected')}
                         {currChoosedAcount.length}
                         {' '}
-                        个
+                        {t('chooseAccount.countUnit')}
                       </span>
                     )}
                     <div className="platChoose-accounts">
                       {currAccountList.map((v) => {
-                        // true=禁用
+                        // disabled when pre-selected and cancellation is blocked
                         const isDisable
                           = choosedAccounts?.find(k => k.id === v.id) && isCancelChooseAccount
                         return (
@@ -324,13 +325,13 @@ const PlatChoose = memo(
                                   list = []
                                   newV.set(activePlat!, list)
                                 }
-                                // 是否存在
+                                // toggle membership
                                 if (list.some(k => k.id === v.id)) {
-                                  // 有、去掉
+                                  // remove
                                   list = list.filter(k => k.id !== v.id)
                                 }
                                 else {
-                                  // 无、添加
+                                  // add
                                   list.push(v)
                                 }
                                 newV.set(activePlat!, list)
@@ -342,7 +343,8 @@ const PlatChoose = memo(
                               title={(
                                 <>
                                   <p>
-                                    昵称：
+                                    {t('nickname')}
+                                    :
                                     {v.nickname}
                                   </p>
                                 </>

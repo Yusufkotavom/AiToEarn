@@ -168,7 +168,7 @@ export class AideoService extends BaseService {
             }
           }
           catch (error) {
-            this.logger.warn({ error, vCreative }, '解析 VCreative ParamJson 或 OutputJson 失败')
+            this.logger.warn({ error, vCreative }, 'Failed to parse VCreative ParamJson or OutputJson')
           }
         }
       }

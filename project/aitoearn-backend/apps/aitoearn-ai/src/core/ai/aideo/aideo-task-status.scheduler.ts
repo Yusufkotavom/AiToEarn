@@ -27,7 +27,7 @@ export class AideoTaskStatusScheduler {
   @Redlock(RedlockKey.AideoTaskStatusCheck, 60, { throwOnFailure: false })
   @WithLoggerContext()
   async processAideoTaskStatus() {
-    this.logger.debug('开始检查 Aideo 任务状态')
+    this.logger.debug('Start checking Aideo task status')
 
     const generatingTasks = await this.aiLogRepo.listGeneratingByType(AiLogType.Aideo, AiLogChannel.Volcengine)
 
@@ -35,7 +35,7 @@ export class AideoTaskStatusScheduler {
       return
     }
 
-    this.logger.debug(`找到 ${generatingTasks.length} 个正在处理中的 Aideo 任务`)
+    this.logger.debug(`Found ${generatingTasks.length} processing Aideo task(s)`)
 
     for (const task of generatingTasks) {
       await this.processTask(task)
@@ -50,7 +50,7 @@ export class AideoTaskStatusScheduler {
       await this.aideoService.processAideoTask(task)
     }
     catch (error) {
-      this.logger.error({ error, taskId: task.id }, '处理 Aideo 任务失败')
+      this.logger.error({ error, taskId: task.id }, 'Failed to process Aideo task')
     }
   }
 }

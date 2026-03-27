@@ -81,7 +81,7 @@ export class VCreativeService extends BaseService {
           }
         : getErrorDetail(error)
 
-      this.logger.error(errorDetails, 'AsyncVCreativeTask请求失败')
+      this.logger.error(errorDetails, 'AsyncVCreativeTask request failed')
       throw error
     }
   }
@@ -142,7 +142,7 @@ export class VCreativeService extends BaseService {
           }
         : getErrorDetail(error)
 
-      this.logger.error(errorDetails, '[getVCreativeTaskResult] 请求失败')
+      this.logger.error(errorDetails, '[getVCreativeTaskResult] Request failed')
       throw error
     }
   }

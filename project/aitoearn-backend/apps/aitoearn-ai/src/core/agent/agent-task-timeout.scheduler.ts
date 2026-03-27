@@ -22,14 +22,14 @@ export class AgentTaskTimeoutScheduler {
   async recoverTimeoutRunningTasks() {
     const timeoutMs = config.agent.taskTimeoutMs
     this.logger.debug(
-      `开始检查超时的 running 任务（超时时间: ${timeoutMs}ms，约 ${Math.round(timeoutMs / 1000 / 60)} 分钟）`,
+      `Start checking timed-out running tasks (timeout: ${timeoutMs}ms, ~${Math.round(timeoutMs / 1000 / 60)} minutes)`,
     )
 
     const result
       = await this.agentService.recoverTimeoutRunningTasks(timeoutMs)
     if (result.updatedCount > 0) {
       this.logger.debug(
-        `成功将 ${result.updatedCount} 个超时任务更新为 error 状态`,
+        `Successfully updated ${result.updatedCount} timed-out task(s) to error status`,
       )
     }
   }

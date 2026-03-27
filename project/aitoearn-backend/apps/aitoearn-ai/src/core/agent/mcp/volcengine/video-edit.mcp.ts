@@ -249,7 +249,7 @@ Returns detailed error information on failure.`,
             return errorResult('Task completed but no output video found.')
           }
 
-          this.logger.debug({ taskId, volcTaskId, outputVid }, '[VideoEdit] 任务完成，开始下载上传')
+          this.logger.debug({ taskId, volcTaskId, outputVid }, '[VideoEdit] Task completed, start download and upload')
 
           const outputUrl = await VolcengineVideoUtils.saveVideoFromVid(
             outputVid,
@@ -263,11 +263,11 @@ Returns detailed error information on failure.`,
           )
 
           if (!outputUrl) {
-            this.logger.error({ taskId, volcTaskId, outputVid }, '[VideoEdit] 视频上传失败')
+            this.logger.error({ taskId, volcTaskId, outputVid }, '[VideoEdit] Video upload failed')
             return errorResult('Task completed but failed to upload video. Please try again.')
           }
 
-          this.logger.debug({ taskId, outputUrl }, '[VideoEdit] 视频上传成功')
+          this.logger.debug({ taskId, outputUrl }, '[VideoEdit] Video uploaded successfully')
 
           await this.aiLogRepo.updateById(aiLog.id, {
             status: AiLogStatus.Success,

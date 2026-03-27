@@ -246,7 +246,7 @@ export class UploadService extends BaseService {
           .then((vid): UploadSuccess => ({ success: true, vid, url, index }))
           .catch((error): UploadFailure => {
             const errorMessage = getErrorMessage(error)
-            this.logger.error({ url, index: index + 1, error: errorMessage }, '批量上传单个视频失败')
+            this.logger.error({ url, index: index + 1, error: errorMessage }, 'Single video upload failed in batch upload')
             return { success: false, url, index, error: errorMessage }
           }),
       ),
@@ -262,7 +262,7 @@ export class UploadService extends BaseService {
       const failureDetails = failedUploads.map(f =>
         `第 ${f.index + 1} 个 (${f.url}): ${f.error}`,
       ).join('\n')
-      this.logger.error({ failedCount: failedUploads.length, details: failureDetails }, '批量上传部分失败')
+      this.logger.error({ failedCount: failedUploads.length, details: failureDetails }, 'Batch upload partially failed')
       throw new AppException(ResponseCode.VideoUploadFailed, {
         message: '部分视频上传失败',
         details: failureDetails,

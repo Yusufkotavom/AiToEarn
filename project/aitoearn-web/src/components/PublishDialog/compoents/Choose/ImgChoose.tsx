@@ -51,7 +51,7 @@ const ImgChoose: FC<ImgChooseProps> = ({ onChoose, onMultipleChoose, children })
         }
       }
       catch (e) {
-        toast.error('选择图片失败')
+        toast.error('Failed to select images')
         console.error(e)
       }
       finally {

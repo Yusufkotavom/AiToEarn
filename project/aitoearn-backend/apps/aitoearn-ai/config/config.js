@@ -55,11 +55,10 @@ function parseGeminiKeyPairs() {
     return JSON.parse(GEMINI_KEY_PAIRS)
   }
   catch (e) {
-    console.error('解析 GEMINI_KEY_PAIRS 失败:', e)
+    console.error('Failed to parse GEMINI_KEY_PAIRS:', e)
     throw new Error('GEMINI_KEY_PAIRS 格式错误')
   }
 }
-
 
 function parseAssetsConfig() {
   let parsed
@@ -67,7 +66,7 @@ function parseAssetsConfig() {
     parsed = JSON.parse(ASSETS_CONFIG)
   }
   catch (e) {
-    console.error('解析 ASSETS_CONFIG 失败:', e)
+    console.error('Failed to parse ASSETS_CONFIG:', e)
     throw new Error('ASSETS_CONFIG 格式错误')
   }
 

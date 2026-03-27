@@ -110,7 +110,7 @@ export class AideoService {
         return durationMinutes * basePrice
       }
       default:
-        this.logger.warn({ skillType }, '未知的技能类型')
+        this.logger.warn({ skillType }, 'Unknown skill type')
         return 0
     }
   }
@@ -317,7 +317,7 @@ export class AideoService {
       }
     })
 
-    this.logger.debug({ inputCount: videoInputs.length }, '视频输入处理完成')
+    this.logger.debug({ inputCount: videoInputs.length }, 'Video input processing completed')
 
     let taskResult
     if ('prompt' in params) {
@@ -371,7 +371,7 @@ export class AideoService {
   async processAideoTask(task: AiLog) {
     const taskId = task.taskId
     if (!taskId) {
-      this.logger.warn({ taskId: task.id }, '任务缺少 taskId，跳过处理')
+      this.logger.warn({ taskId: task.id }, 'Task missing taskId, skip processing')
       return
     }
 
@@ -380,14 +380,14 @@ export class AideoService {
     }
 
     if (task.model === 'drama-recap') {
-      this.logger.log({ taskId: task.id, volcengineTaskId: taskId }, '[DramaRecap] 定时任务查询状态')
+      this.logger.log({ taskId: task.id, volcengineTaskId: taskId }, '[DramaRecap] Polling task status')
 
       const result = await this.volcengineService.getDramaRecapTask({
         TaskId: taskId,
         SpaceName: this.volcengineService.getSpaceName(),
       })
 
-      this.logger.log({ taskId: task.id, status: result.Status }, '[DramaRecap] 查询结果')
+      this.logger.log({ taskId: task.id, status: result.Status }, '[DramaRecap] Query result')
       if (result.Status === DramaRecapTaskStatus.Completed || result.Status === DramaRecapTaskStatus.Failed) {
         await this.dramaRecapService.processDramaRecapTask(task, result)
       }
@@ -456,7 +456,7 @@ export class AideoService {
         if (!hasAsset || (projectStatus && exportingOrProcessingStatuses.has(projectStatus))) {
           const elapsed = Date.now() - task.startedAt.getTime()
 
-          this.logger.warn({ taskId: task.id, elapsed, projectStatus, hasAsset }, 'AITranslation 标记为 Completed 但未产出可用资产，延迟处理')
+          this.logger.warn({ taskId: task.id, elapsed, projectStatus, hasAsset }, 'AITranslation marked as Completed but no usable assets produced; delaying handling')
 
           await this.aiLogRepo.updateById(task.id, { status: AiLogStatus.Generating, response: taskResult })
           return
@@ -494,7 +494,7 @@ export class AideoService {
       }
 
       const billingInfo = await this.extractBillingInfo(taskResult)
-      this.logger.debug({ billingInfo }, '提取计费信息完成')
+      this.logger.debug({ billingInfo }, 'Billing info extraction completed')
       if (!billingInfo || billingInfo.duration <= 0) {
         this.logger.warn(
           { taskId: task.id, taskResult },
@@ -505,7 +505,7 @@ export class AideoService {
       }
 
       const price = await this.calculateAideoPrice(billingInfo)
-      this.logger.debug({ taskId: task.id, price }, '计算任务价格完成')
+      this.logger.debug({ taskId: task.id, price }, 'Task price calculation completed')
       if (price > 0 && task.userType === UserType.User) {
         await this.creditsHelper.deductCredits({
           userId: task.userId,
@@ -668,14 +668,14 @@ export class AideoService {
             else {
               outputJson.url = outputUrl
             }
-            this.logger.debug({ outputUrl }, '[VCreative] 视频已保存')
+            this.logger.debug({ outputUrl }, '[VCreative] Video saved')
           }
           else {
-            this.logger.error({ vid }, '[VCreative] 视频保存失败')
+            this.logger.error({ vid }, '[VCreative] Failed to save video')
           }
         }
         else {
-          this.logger.warn({ outputJson }, '[VCreative] 无法从 outputJson 中提取 VID')
+          this.logger.warn({ outputJson }, '[VCreative] Unable to extract VID from outputJson')
         }
       }
     }

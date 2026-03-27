@@ -181,7 +181,7 @@ export function detectMediaType(filename: string): MediaType {
     return MediaType.Audio
   }
 
-  logger.warn(`无法识别文件类型: ${filename}`)
+  logger.warn(`Unrecognized file type: ${filename}`)
   return MediaType.Unknown
 }
 
@@ -257,8 +257,8 @@ export function generateOptimizedMergePrompt(inputs: Array<{ url?: string, fileN
   const validation = validateVideoAudioMergeInputs(inputs)
 
   if (!validation.isValid) {
-    logger.warn(`输入验证失败: ${validation.error}`)
-    logger.warn(`建议: ${validation.suggestion}`)
+    logger.warn(`Input validation failed: ${validation.error}`)
+    logger.warn(`Suggestion: ${validation.suggestion}`)
   }
 
   // 返回火山引擎推荐的标准格式

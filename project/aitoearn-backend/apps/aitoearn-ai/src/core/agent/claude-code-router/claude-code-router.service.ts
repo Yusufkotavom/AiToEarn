@@ -55,7 +55,7 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
     const routerConfig = config.agent
 
     const cliPath = require.resolve('@musistudio/claude-code-router/dist/cli.js')
-    this.logger.debug(`找到 Claude Code Router CLI: ${cliPath}`)
+    this.logger.debug(`Claude Code Router CLI found: ${cliPath}`)
 
     this.startFileWatcher()
     this.generateConfigFile(routerConfig)
@@ -68,11 +68,11 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
     if (this.fileWatcher) {
       this.fileWatcher.close()
       this.fileWatcher = null
-      this.logger.debug('文件监听器已停止')
+      this.logger.debug('File watcher stopped')
     }
 
     if (this.childProcess) {
-      this.logger.debug('正在停止 Claude Code Router...')
+      this.logger.debug('Stopping Claude Code Router...')
       this.childProcess.kill('SIGTERM')
       this.childProcess = null
     }
@@ -81,7 +81,7 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
   private generateConfigFile(routerConfig: { baseUrl: string, apiKey: string }) {
     if (!existsSync(this.configDir)) {
       mkdirSync(this.configDir, { recursive: true })
-      this.logger.debug(`创建配置目录: ${this.configDir}`)
+      this.logger.debug(`Created config directory: ${this.configDir}`)
     }
 
     const routerConfigFile: ClaudeCodeRouterConfig = {
@@ -121,11 +121,11 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
     }
 
     writeFileSync(this.configPath, JSON.stringify(routerConfigFile, null, 2), 'utf-8')
-    this.logger.debug(`配置文件已生成: ${this.configPath}`)
+    this.logger.debug(`Config file generated: ${this.configPath}`)
   }
 
   private startChildProcess(cliPath: string) {
-    this.logger.debug('正在启动 Claude Code Router 子进程...')
+    this.logger.debug('Starting Claude Code Router child process...')
 
     this.childProcess = spawn('node', [cliPath, 'start'], {
       cwd: this.sessionDir,
@@ -146,35 +146,35 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
 
     this.childProcess.on('exit', (code, signal) => {
       if (code !== null) {
-        this.logger.debug(`Claude Code Router 进程退出，退出码: ${code}`)
+        this.logger.debug(`Claude Code Router process exited with code: ${code}`)
       }
       else if (signal) {
-        this.logger.debug(`Claude Code Router 进程被信号终止: ${signal}`)
+        this.logger.debug(`Claude Code Router process terminated by signal: ${signal}`)
       }
       this.childProcess = null
 
       if (this.shouldRestart) {
-        this.logger.debug('正在重启 Claude Code Router...')
+        this.logger.debug('Restarting Claude Code Router...')
         this.startChildProcess(cliPath)
       }
     })
 
     this.childProcess.on('error', (error) => {
-      this.logger.error({ error }, 'Claude Code Router 进程错误')
+      this.logger.error({ error }, 'Claude Code Router process error')
       this.childProcess = null
     })
 
-    this.logger.debug('Claude Code Router 子进程已启动')
+    this.logger.debug('Claude Code Router child process started')
   }
 
   private removePidFile() {
     if (existsSync(this.pidFilePath)) {
       try {
         unlinkSync(this.pidFilePath)
-        this.logger.debug(`已删除 pid 文件: ${this.pidFilePath}`)
+        this.logger.debug(`Removed pid file: ${this.pidFilePath}`)
       }
       catch (error) {
-        this.logger.warn({ error }, '删除 pid 文件失败')
+        this.logger.warn({ error }, 'Failed to remove pid file')
       }
     }
   }
@@ -182,7 +182,7 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
   private startFileWatcher() {
     if (!existsSync(this.configDir)) {
       mkdirSync(this.configDir, { recursive: true })
-      this.logger.debug(`创建配置目录: ${this.configDir}`)
+      this.logger.debug(`Created config directory: ${this.configDir}`)
     }
 
     if (this.fileWatcher) {
@@ -191,17 +191,17 @@ export class ClaudeCodeRouterService implements OnModuleInit, OnModuleDestroy {
 
     this.removePidFile()
 
-    this.logger.debug(`开始监听目录: ${this.sessionDir}`)
+    this.logger.debug(`Watching directory: ${this.sessionDir}`)
 
     this.fileWatcher = watch(this.sessionDir, (eventType, filename) => {
       if (filename === '.claude-code-router.pid') {
-        this.logger.debug(`检测到 pid 文件事件: ${eventType}`)
+        this.logger.debug(`Detected pid file event: ${eventType}`)
         this.removePidFile()
       }
     })
 
     this.fileWatcher.on('error', (error) => {
-      this.logger.error({ error }, '文件监听器错误')
+      this.logger.error({ error }, 'File watcher error')
     })
   }
 }

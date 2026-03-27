@@ -52,23 +52,23 @@ export class VideoStyleTransferService {
   ): Promise<{ taskId: string }> {
     const { userId, userType, videoInput, style, resolution } = request
 
-    this.logger.debug({ userId, videoInput, style, originalStyle: style, resolution }, '[VideoStyleTransfer] 提交任务')
+    this.logger.debug({ userId, videoInput, style, originalStyle: style, resolution }, '[VideoStyleTransfer] Submitting task')
     const startedAt = new Date()
 
     // 1. 处理输入视频
     let vid: string
     if (videoInput.startsWith('vid://')) {
       vid = videoInput.replace('vid://', '')
-      this.logger.debug({ vid }, '[VideoStyleTransfer] 使用已有 VID')
+      this.logger.debug({ vid }, '[VideoStyleTransfer] Using existing VID')
     }
     else if (videoInput.startsWith('http://') || videoInput.startsWith('https://')) {
       // 优先使用流上传（更快更可靠）
-      this.logger.debug({ url: videoInput }, '[VideoStyleTransfer] 开始下载并上传视频')
+      this.logger.debug({ url: videoInput }, '[VideoStyleTransfer] Downloading and uploading video')
 
       vid = await this.volcengineService.downloadUrlAndUploadAsStream(
         videoInput,
       )
-      this.logger.log({ vid }, '[VideoStyleTransfer] 视频上传成功')
+      this.logger.log({ vid }, '[VideoStyleTransfer] Video uploaded successfully')
     }
     else {
       // 假设直接传入的就是 VID
@@ -90,7 +90,7 @@ export class VideoStyleTransferService {
 
     const taskId = response.VCreativeId
 
-    this.logger.debug({ taskId }, '[VideoStyleTransfer] 任务提交成功')
+    this.logger.debug({ taskId }, '[VideoStyleTransfer] Task submitted successfully')
 
     await this.aiLogRepo.create({
       userId,
@@ -124,7 +124,7 @@ export class VideoStyleTransferService {
   }> {
     const { taskId } = request
 
-    this.logger.debug({ taskId }, '[VideoStyleTransfer] 查询任务状态')
+    this.logger.debug({ taskId }, '[VideoStyleTransfer] Querying task status')
 
     // 从数据库查询任务记录
     const log = await this.aiLogRepo.getByTaskId(taskId)
@@ -188,7 +188,7 @@ export class VideoStyleTransferService {
   async processVCreativeTask(task: AiLog) {
     const taskId = task.taskId
     if (!taskId) {
-      this.logger.warn({ taskId: task.id }, 'VCreative 任务缺少 taskId，跳过处理')
+      this.logger.warn({ taskId: task.id }, 'VCreative task missing taskId, skip processing')
       return
     }
 
@@ -197,7 +197,7 @@ export class VideoStyleTransferService {
         VCreativeId: taskId,
       })
 
-      this.logger.debug({ taskId: task.id, status: result.Status }, 'VCreative 任务状态')
+      this.logger.debug({ taskId: task.id, status: result.Status }, 'VCreative task status')
 
       // 处理成功状态
       if (result.Status === VCreativeTaskStatus.Success) {
@@ -209,7 +209,7 @@ export class VideoStyleTransferService {
             outputVid = outputJson.vid
           }
           catch (error) {
-            this.logger.warn({ error }, '[VCreative] 解析 OutputJson 失败')
+            this.logger.warn({ error }, '[VCreative] Failed to parse OutputJson')
           }
         }
 
@@ -217,12 +217,12 @@ export class VideoStyleTransferService {
         let s3Url: string | undefined
         if (outputVid) {
           try {
-            this.logger.debug({ outputVid }, '[VCreative] 开始下载视频并上传到 S3')
+            this.logger.debug({ outputVid }, '[VCreative] Downloading video and uploading to S3')
             s3Url = await this.saveVideoFromVid(outputVid, task, 'video-style-transfer')
-            this.logger.debug({ s3Url }, '[VCreative] 视频已上传到 S3')
+            this.logger.debug({ s3Url }, '[VCreative] Video uploaded to S3')
           }
           catch (error) {
-            this.logger.error({ error }, '[VCreative] 下载或上传 S3 失败')
+            this.logger.error({ error }, '[VCreative] Failed to download or upload to S3')
           }
         }
 
@@ -247,13 +247,13 @@ export class VideoStyleTransferService {
           duration: Date.now() - task.startedAt.getTime(),
         })
 
-        this.logger.debug({ taskId: task.id, outputVid, s3Url }, '[VCreative] 任务处理完成')
+        this.logger.debug({ taskId: task.id, outputVid, s3Url }, '[VCreative] Task processing completed')
       }
       // 处理失败状态
       else if (result.Status === VCreativeTaskStatus.FailedRun) {
         const errorMessage = result.OutputJson || '任务执行失败'
 
-        this.logger.error({ taskId: task.id, errorMessage }, '[VCreative] 任务失败')
+        this.logger.error({ taskId: task.id, errorMessage }, '[VCreative] Task failed')
 
         await this.aiLogRepo.updateById(task.id, {
           status: AiLogStatus.Failed,
@@ -263,12 +263,12 @@ export class VideoStyleTransferService {
       }
       // 处理中状态 - 不做任何操作，等待下次轮询
       else if (result.Status === VCreativeTaskStatus.Processing) {
-        this.logger.debug({ taskId: task.id }, '[VCreative] 任务处理中')
+        this.logger.debug({ taskId: task.id }, '[VCreative] Task is processing')
         // 不更新数据库，保持 Generating 状态
       }
     }
     catch (error) {
-      this.logger.error({ error, taskId: task.id, volcengineTaskId: taskId }, '获取 VCreative 任务结果失败')
+      this.logger.error({ error, taskId: task.id, volcengineTaskId: taskId }, 'Failed to get VCreative task result')
 
       const resp = isAxiosError(error)
         ? (error.response?.data ?? error.response)

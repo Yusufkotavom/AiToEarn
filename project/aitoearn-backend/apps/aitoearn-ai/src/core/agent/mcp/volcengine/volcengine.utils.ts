@@ -148,7 +148,7 @@ export class VolcengineVideoUtils {
     const ts = Math.floor(Date.now() / 1000) + 3600
     const playbackUrl = this.genTypeAUrl(baseUrl, urlAuthPrimaryKey, ts)
 
-    logger.debug({ playbackUrl, fileName }, '拼接播放 URL')
+    logger.debug({ playbackUrl, fileName }, 'Composed playback URL')
 
     // 使用 fetch 流式下载并上传
     const response = await fetch(playbackUrl)
@@ -159,7 +159,7 @@ export class VolcengineVideoUtils {
     const contentLength = response.headers.get('content-length')
     const size = contentLength ? Number.parseInt(contentLength, 10) : 0
 
-    logger.debug({ size: `${(size / 1024 / 1024).toFixed(2)} MB` }, '开始流式上传')
+    logger.debug({ size: `${(size / 1024 / 1024).toFixed(2)} MB` }, 'Start streaming upload')
 
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)

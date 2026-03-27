@@ -43,7 +43,7 @@ export class MediaService extends BaseService {
 
     if (response.ResponseMetadata?.Error) {
       const error = response.ResponseMetadata.Error
-      this.logger.error({ vid: request.Vid, code: error.Code, message: error.Message }, '获取播放信息失败')
+      this.logger.error({ vid: request.Vid, code: error.Code, message: error.Message }, 'Failed to get playback info')
     }
 
     if (response.Result?.PlayInfoList) {
@@ -78,7 +78,7 @@ export class MediaService extends BaseService {
     const authParam = `${timestamp}-${md5Hash}`
     const fullUrl = `${playbackBaseUrl}${uriPath}?auth_key=${authParam}`
 
-    this.logger.debug({ uri, timestamp, fullUrl }, '构建带鉴权URL成功')
+    this.logger.debug({ uri, timestamp, fullUrl }, 'Built signed URL successfully')
     return fullUrl
   }
 }

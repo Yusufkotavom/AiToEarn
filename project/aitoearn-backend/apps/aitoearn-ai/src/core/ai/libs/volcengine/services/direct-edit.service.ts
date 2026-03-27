@@ -76,7 +76,7 @@ export class DirectEditService extends BaseService {
   ): GetDirectEditResultItem {
     // 处理空结果
     if (!result) {
-      this.logger.error({ reqId }, '[ProcessDirectEditResult] Result 为空')
+      this.logger.error({ reqId }, '[ProcessDirectEditResult] Result is empty')
       throw new AppException(ResponseCode.AiCallFailed, '任务结果为空')
     }
 
@@ -84,7 +84,7 @@ export class DirectEditService extends BaseService {
     if (Array.isArray(result)) {
       if (result.length === 0) {
         // 任务刚提交，火山引擎还没准备好数据，返回处理中状态
-        this.logger.debug({ reqId }, '[ProcessDirectEditResult] 任务结果为空数组，任务可能刚提交还在准备中')
+        this.logger.debug({ reqId }, '[ProcessDirectEditResult] Result is an empty array; task may have just been submitted and is still preparing')
         return {
           TaskId: reqId,
           ReqId: reqId,
@@ -102,7 +102,7 @@ export class DirectEditService extends BaseService {
     }
 
     // 不支持的格式
-    this.logger.error({ result, reqId }, '[ProcessDirectEditResult] Result 格式不支持')
+    this.logger.error({ result, reqId }, '[ProcessDirectEditResult] Unsupported result format')
     throw new AppException(ResponseCode.AiCallFailed, '任务结果格式错误')
   }
 

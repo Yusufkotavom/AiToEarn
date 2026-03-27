@@ -121,7 +121,7 @@ export const AccountPlatInfoMap = new Map<PlatType, IAccountPlatInfo>([
   [
     PlatType.Douyin,
     {
-      name: '抖音',
+      name: 'douyin',
       icon: douyinSvg,
       url: 'https://www.douyin.com/',
       pubTypes: new Set([PubType.VIDEO]),

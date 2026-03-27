@@ -119,7 +119,7 @@ const PubParmasTextareaUpload = memo(
           catch (error) {
             if (!isAbortError(error)) {
               console.error(error)
-              toast.error('上传失败，请稀后重试')
+              toast.error('Upload failed, please try again later')
               videoHandle.cancel()
               coverHandle.cancel()
             }
@@ -178,7 +178,7 @@ const PubParmasTextareaUpload = memo(
               .catch((error) => {
                 if (!isAbortError(error)) {
                   console.error(error)
-                  toast.error('上传失败，请稍后重试')
+                  toast.error('Upload failed, please try again later')
                   cancel()
                 }
               })
@@ -421,7 +421,7 @@ const PubParmasTextareaUpload = memo(
           }
           catch (error) {
             console.error('Failed to import media:', error)
-            toast.error('导入素材失败')
+            toast.error('Failed to import assets')
           }
           finally {
             setImportLoading(false)

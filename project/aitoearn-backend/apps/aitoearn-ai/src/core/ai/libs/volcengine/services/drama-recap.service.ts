@@ -85,7 +85,7 @@ export class DramaRecapService extends BaseService {
     // 对于短剧解说任务，Result 可能为空（任务刚提交还在准备中）
     // 返回一个默认的处理中状态，让上层继续轮询
     if (!response.Result) {
-      this.logger.debug({ taskId: request.TaskId }, '[getDramaRecapTask] Result 为空，任务可能还在准备中')
+      this.logger.debug({ taskId: request.TaskId }, '[getDramaRecapTask] Result is empty, task may still be preparing')
       return {
         TaskId: request.TaskId,
         Status: DramaRecapTaskStatus.Processing,

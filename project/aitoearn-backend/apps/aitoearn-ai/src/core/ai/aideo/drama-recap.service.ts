@@ -58,7 +58,7 @@ export class DramaRecapService {
       allowRepeatMatch = false,
     } = request
 
-    this.logger.log({ userId, vids, dramaScriptTaskId }, '[DramaRecap] 提交任务')
+    this.logger.log({ userId, vids, dramaScriptTaskId }, '[DramaRecap] Submitting task')
 
     const startedAt = new Date()
 
@@ -115,7 +115,7 @@ export class DramaRecapService {
 
     const { TaskId: volcengineTaskId, DramaScriptTaskId: responseDramaScriptTaskId } = response
 
-    this.logger.log({ volcengineTaskId, dramaScriptTaskId: responseDramaScriptTaskId }, '[DramaRecap] 任务提交成功')
+    this.logger.log({ volcengineTaskId, dramaScriptTaskId: responseDramaScriptTaskId }, '[DramaRecap] Task submitted successfully')
 
     const aiLog = await this.aiLogRepo.create({
       userId,
@@ -161,7 +161,7 @@ export class DramaRecapService {
   }> {
     const { taskId } = request
 
-    this.logger.log({ taskId }, '[DramaRecap] 查询任务状态')
+    this.logger.log({ taskId }, '[DramaRecap] Querying task status')
 
     // 从数据库查询任务记录（taskId 是数据库记录的 id，不是火山引擎的 TaskId）
     const log = await this.aiLogRepo.getById(taskId)
@@ -232,7 +232,7 @@ export class DramaRecapService {
    */
   async processDramaRecapTask(task: AiLog, result: QueryDramaRecapTaskResponse): Promise<void> {
     if (result.Status === DramaRecapTaskStatus.Completed && result.Vid) {
-      this.logger.log({ Vid: result.Vid }, '[DramaRecap] 开始下载视频并上传到 S3')
+      this.logger.log({ Vid: result.Vid }, '[DramaRecap] Downloading video and uploading to S3')
 
       // 下载视频并上传到 S3
       const s3Url = await this.saveVideoFromVid(result.Vid, task, 'drama-recap')
@@ -256,7 +256,7 @@ export class DramaRecapService {
         await this.billDramaRecapTask(updatedTaskLog)
       }
 
-      this.logger.log({ taskId: task.taskId, outputVid: result.Vid }, '[DramaRecap] 任务处理完成')
+      this.logger.log({ taskId: task.taskId, outputVid: result.Vid }, '[DramaRecap] Task processing completed')
     }
     else if (result.Status === DramaRecapTaskStatus.Failed) {
       // 更新任务状态为失败
@@ -267,7 +267,7 @@ export class DramaRecapService {
         errorMessage: result.ErrorMessage,
       })
 
-      this.logger.error({ taskId: task.taskId, errorMessage: result.ErrorMessage }, '[DramaRecap] 任务失败')
+      this.logger.error({ taskId: task.taskId, errorMessage: result.ErrorMessage }, '[DramaRecap] Task failed')
     }
   }
 
@@ -280,7 +280,7 @@ export class DramaRecapService {
     const outputVid = response?.['outputVid']
 
     if (!outputVid) {
-      this.logger.warn({ taskId: taskLog.taskId }, '[DramaRecap] 无法获取输出视频 VID，跳过计费')
+      this.logger.warn({ taskId: taskLog.taskId }, '[DramaRecap] Unable to get output VID, skip billing')
       return
     }
 

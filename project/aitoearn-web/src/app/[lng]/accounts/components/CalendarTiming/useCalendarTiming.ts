@@ -98,7 +98,7 @@ export const useCalendarTiming = create(
 
             // 检查响应数据是否有效
             if (!res || !res.data || !Array.isArray(res.data)) {
-              console.warn('获取发布记录数据失败或数据格式不正确:', res)
+              console.warn('Failed to fetch publish records or received invalid response format:', res)
               methods.setRecordMap(new Map())
               return
             }
@@ -133,7 +133,7 @@ export const useCalendarTiming = create(
             methods.queryPubTask()
           }
           catch (error) {
-            console.error('获取发布记录数据时发生错误:', error)
+            console.error('Error occurred while fetching publish records:', error)
             methods.setListLoading(false)
             methods.setRecordMap(new Map())
           }
@@ -210,7 +210,7 @@ export const useCalendarTiming = create(
             }
           }
           catch (error) {
-            console.error('轮询查询发布任务详情时发生错误:', error)
+            console.error('Error occurred while polling publish task details:', error)
             methods.setPolling(false)
           }
         },

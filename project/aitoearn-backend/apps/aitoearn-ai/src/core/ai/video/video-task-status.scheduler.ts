@@ -42,7 +42,7 @@ export class VideoTaskStatusScheduler {
   @Redlock(RedlockKey.VideoTaskStatusCheck, 600, { throwOnFailure: false })
   @WithLoggerContext()
   async processVideoTaskStatus() {
-    this.logger.debug('开始检查视频生成任务状态')
+    this.logger.debug('Start checking video generation task status')
 
     const generatingTasks = await this.aiLogRepo.listGeneratingByType(AiLogType.Video)
 
@@ -50,7 +50,7 @@ export class VideoTaskStatusScheduler {
       return
     }
 
-    this.logger.debug(`找到 ${generatingTasks.length} 个正在生成中的视频任务`)
+    this.logger.debug(`Found ${generatingTasks.length} generating video task(s)`)
 
     for (const task of generatingTasks) {
       await this.processTask(task)
@@ -109,7 +109,7 @@ export class VideoTaskStatusScheduler {
       await this.aicsoGrokVideoService.callback(result)
     }
     else {
-      this.logger.warn(`任务 ${task.id} 未知的 channel: ${channel}，跳过检查`)
+      this.logger.warn(`Task ${task.id} has unknown channel: ${channel}, skip checking`)
     }
   }
 }

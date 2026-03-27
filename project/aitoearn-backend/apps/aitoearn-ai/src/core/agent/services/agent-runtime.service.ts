@@ -398,7 +398,7 @@ export class AgentRuntimeService {
         first(chunk => chunk.type === 'stream_event'),
         map(() => true),
         catchError((error) => {
-          this.logger.error({ error, chunks }, '健康检查失败')
+          this.logger.error({ error, chunks }, 'Health check failed')
           return of(false)
         }),
       ),
@@ -615,7 +615,7 @@ export class AgentRuntimeService {
             }
 
             if (taskInfo.claudeCodeProcess) {
-              this.logger.debug({ taskId, sessionId }, `正在关闭任务 ${taskId} 的子进程`)
+              this.logger.debug({ taskId, sessionId }, `Closing child process for task ${taskId}`)
               taskInfo.claudeCodeProcess.kill()
             }
 
