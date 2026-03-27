@@ -1,8 +1,9 @@
-a/**
+'use client'
+
+/**
  * GeneralTab - 通用设置 Tab
  */
 
-'use client'
 
 import { setCookie } from 'cookies-next'
 import { Loader2, Settings } from 'lucide-react'
