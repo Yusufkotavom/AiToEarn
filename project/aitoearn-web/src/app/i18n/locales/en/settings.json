@@ -169,7 +169,10 @@
     "notifications": "Email Notifications",
     "notificationsDesc": "Manage your email notification preferences",
     "editNotifications": "Edit Notification Settings",
-    "changingLanguage": "Switching..."
+    "changingLanguage": "Switching...",
+    "aiProviderKeys": "AI Provider API Keys",
+    "aiProviderKeysDesc": "Metadata generation uses API keys from server environment variables.",
+    "aiProviderKeysServerOnly": "Set GROQ_API_KEY and/or GEMINI_API_KEY on the backend/server environment."
   },
   "agent": {
     "title": "Agent",

@@ -169,7 +169,10 @@
     "notifications": "邮件通知",
     "notificationsDesc": "管理您的邮件通知偏好设置",
     "editNotifications": "设置通知",
-    "changingLanguage": "切换中..."
+    "changingLanguage": "切换中...",
+    "aiProviderKeys": "AI 提供商 API Key",
+    "aiProviderKeysDesc": "元数据生成功能会使用服务端环境变量中的 API Key。",
+    "aiProviderKeysServerOnly": "请在后端/服务器环境变量中设置 GROQ_API_KEY 和/或 GEMINI_API_KEY。"
   },
   "agent": {
     "title": "Agent",

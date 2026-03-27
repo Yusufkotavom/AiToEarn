@@ -158,6 +158,15 @@ export function GeneralTab() {
         </Select>
       </div>
 
+      {/* AI Provider API Keys */}
+      <div className="space-y-3">
+        <div>
+          <h4 className="text-sm font-medium text-foreground">{t('general.aiProviderKeys')}</h4>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('general.aiProviderKeysDesc')}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">{t('general.aiProviderKeysServerOnly')}</p>
+      </div>
+
       {/* 邮件通知控制模态框 */}
       <NotificationControlModal
         visible={controlModalVisible}
