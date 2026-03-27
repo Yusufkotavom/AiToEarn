@@ -4,6 +4,7 @@
  */
 import type { Metadata } from 'next'
 import { useTranslation } from '@/app/i18n'
+import { APP_URL } from '@/app/layout/shared/constants'
 import { fallbackLng, languages } from '@/app/i18n/settings'
 import { getMetadata } from '@/utils/general'
 import styles from '../websit.module.scss'
@@ -91,7 +92,9 @@ export default function ExtensionPrivacyPolicyPage() {
               <p className={styles.sectionContent}>
                 AiToEarn Extension is a browser extension designed to help users automate content
                 publishing, engagement, and social media tasks seamlessly with the AiToEarn web
-                platform (https://aitoearn.ai). The extension works in conjunction with supported
+                platform
+                {' '}
+                ({APP_URL}). The extension works in conjunction with supported
                 social media platforms including Douyin, Xiaohongshu (Little Red Book), and other
                 services.
               </p>
@@ -358,7 +361,7 @@ export default function ExtensionPrivacyPolicyPage() {
                   <br />
                   <strong>Website:</strong>
                   {' '}
-                  https://aitoearn.ai
+                  {APP_URL}
                 </p>
               </div>
             </section>

@@ -1,4 +1,5 @@
 import type { AdaptMaterialDto, MaterialAdaptationVo } from './types/ai'
+import { APP_URL } from '@/app/layout/shared/constants'
 import type { AssetListVo } from '@/types/agent-asset'
 import { useUserStore } from '@/store/user'
 import http from '@/utils/request'
@@ -161,8 +162,10 @@ export async function aiChatStream(data: {
 }) {
   const token = useUserStore.getState().token
   const lang = useUserStore.getState().lang
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || `${APP_URL}/api`
+  const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, '')
 
-  const response = await fetch('https://aitoearn.ai/api/ai/chat', {
+  const response = await fetch(`${normalizedApiBaseUrl}/ai/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -6,8 +6,13 @@
 /** GitHub 仓库地址 */
 export const GITHUB_REPO = 'yikart/AiToEarn'
 
+const APP_DOMAIN = process.env.NEXT_PUBLIC_APP_DOMAIN || 'api.piiblog.net'
+
+/** 主站地址 */
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`
+
 /** 文档网站地址 */
-export const DOCS_URL = 'https://docs.aitoearn.ai'
+export const DOCS_URL = process.env.NEXT_PUBLIC_DOCS_URL || 'https://docs.aitoearn.ai'
 
 /**
  * 导航菜单分组配置

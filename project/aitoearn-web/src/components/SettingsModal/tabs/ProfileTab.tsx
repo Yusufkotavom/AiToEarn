@@ -11,6 +11,7 @@ import { useShallow } from 'zustand/shallow'
 import { updateUserInfoApi } from '@/api/apiReq'
 import { uploadToOss } from '@/api/oss'
 import { useTransClient } from '@/app/i18n/client'
+import { DOCS_URL } from '@/app/layout/shared/constants'
 import { AvatarCropModal } from '@/components/AvatarCropModal'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -232,7 +233,7 @@ export function ProfileTab({ onClose }: ProfileTabProps) {
       {/* Docs & GitHub Stars */}
       <div className="flex flex-wrap items-center gap-3">
         <Button asChild variant="outline" size="sm">
-          <a href="https://docs.aitoearn.ai/" target="_blank" rel="noopener noreferrer">
+          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
             {tCommon('docs')}
           </a>
         </Button>

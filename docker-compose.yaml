@@ -251,9 +251,9 @@ services:
       ALI_SMS_ACCESS_KEY_SECRET: ${ALI_SMS_ACCESS_KEY_SECRET:-}
       ALI_SMS_SIGN_NAME: ${ALI_SMS_SIGN_NAME:-}
       ALI_SMS_TEMPLATE_CODE: ${ALI_SMS_TEMPLATE_CODE:-}
-      RELAY_SERVER_URL: ${RELAY_SERVER_URL:-https://aitoearn.ai/api}
+      RELAY_SERVER_URL: ${RELAY_SERVER_URL:-https://${PUBLISHER_DOMAIN:-aitoearn.ai}/api}
       RELAY_API_KEY: ${RELAY_API_KEY:-}
-      RELAY_CALLBACK_URL: ${RELAY_CALLBACK_URL:-https://api.piiblog.net/api/plat/relay-callback}
+      RELAY_CALLBACK_URL: ${RELAY_CALLBACK_URL:-https://${APP_DOMAIN:-api.piiblog.net}/api/plat/relay-callback}
 
     healthcheck:
       test:
@@ -286,6 +286,9 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-1}
+      NEXT_PUBLIC_APP_DOMAIN: ${APP_DOMAIN:-api.piiblog.net}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://${APP_DOMAIN:-api.piiblog.net}}
+      NEXT_PUBLIC_DOCS_URL: ${NEXT_PUBLIC_DOCS_URL:-https://docs.aitoearn.ai}
 
   nginx:
     image: nginx:alpine
