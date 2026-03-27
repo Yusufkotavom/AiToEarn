@@ -300,7 +300,9 @@ export class AssetsService {
         }
       }
       catch (error) {
-        this.logger.warn({ assetId: asset.id, path: asset.path, error }, 'headObject failed while checking pending asset, keep pending for retry')
+        await this.assetRepository.updateStatus(asset.id, AssetStatus.Failed)
+        failed++
+        this.logger.warn({ assetId: asset.id, path: asset.path, error }, 'headObject failed while checking pending asset, marked as failed')
       }
     }
 
