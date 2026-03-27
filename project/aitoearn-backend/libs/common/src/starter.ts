@@ -92,25 +92,6 @@ export async function startApplication(Module: Type<unknown>, config: BaseConfig
       pinoHttp: [
         {
           level: 'trace',
-          wrapSerializers: false,
-          serializers: {
-            req(req) {
-              return {
-                id: req.id,
-                method: req.method,
-                url: req.url,
-                query: req.query,
-                params: req.params,
-                remoteAddress: req.socket?.remoteAddress,
-                remotePort: req.socket?.remotePort,
-              }
-            },
-            res(res) {
-              return {
-                statusCode: res.statusCode,
-              }
-            },
-          },
           redact: {
             paths: [
               'req.headers.authorization',
