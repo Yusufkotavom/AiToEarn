@@ -8,7 +8,6 @@ COPY . ./
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm nx build aitoearn-ai
-RUN if [ -d dist/libs ]; then rm -rf libs && cp -R dist/libs libs; fi
 
 FROM node:24-alpine AS production
 
@@ -21,7 +20,6 @@ WORKDIR /app
 COPY assets/ ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/dist ./dist
-COPY --from=deps /app/libs ./libs
 
 ENV NODE_ENV=production
 ENV APP_NAME=$APP_NAME
