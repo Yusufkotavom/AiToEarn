@@ -50,36 +50,44 @@ export class MetadataService {
       throw new AppException(ResponseCode.InvalidModel)
     }
 
+    const pickByProvider = () => {
+      if (provider === 'auto') {
+        return chatModels[0]
+      }
+      const matched = chatModels.find((model) => {
+        const normalized = model.toLowerCase()
+        if (provider === 'gemini') {
+          return normalized.includes('gemini')
+        }
+        return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+      })
+      return matched ?? chatModels[0]
+    }
+
     if (requestedModel?.trim()) {
       const normalizedRequestedModel = requestedModel.trim()
-      if (!chatModels.includes(normalizedRequestedModel)) {
-        throw new AppException(ResponseCode.InvalidModel)
-      }
+      const exactMatchedModel = chatModels.find(model => model.toLowerCase() === normalizedRequestedModel.toLowerCase())
+      const fuzzyMatchedModel = exactMatchedModel
+        || chatModels.find(model => model.toLowerCase().includes(normalizedRequestedModel.toLowerCase()))
+      const selectedModel = fuzzyMatchedModel ?? pickByProvider()
 
-      const modelName = normalizedRequestedModel.toLowerCase()
+      const modelName = selectedModel.toLowerCase()
       if (provider === 'gemini' && !modelName.includes('gemini')) {
-        throw new AppException(ResponseCode.InvalidModel, { error: 'Selected model is not a Gemini model' })
+        const fallbackGemini = chatModels.find(model => model.toLowerCase().includes('gemini'))
+        return fallbackGemini ?? selectedModel
       }
       if (provider === 'groq' && modelName.includes('gemini')) {
-        throw new AppException(ResponseCode.InvalidModel, { error: 'Selected model is not a Groq-compatible model' })
+        const fallbackGroq = chatModels.find((model) => {
+          const normalized = model.toLowerCase()
+          return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+        })
+        return fallbackGroq ?? selectedModel
       }
 
-      return normalizedRequestedModel
+      return selectedModel
     }
 
-    if (provider === 'auto') {
-      return chatModels[0]
-    }
-
-    const matched = chatModels.find((model) => {
-      const normalized = model.toLowerCase()
-      if (provider === 'gemini') {
-        return normalized.includes('gemini')
-      }
-      return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
-    })
-
-    return matched ?? chatModels[0]
+    return pickByProvider()
   }
 
   private pickGeminiModel(): string | undefined {
