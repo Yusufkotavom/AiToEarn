@@ -7,10 +7,11 @@ import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } fr
 import { useShallow } from 'zustand/react/shallow'
 import { getAccountGroupApi } from '@/api/account'
 import { AccountPlatInfoMap } from '@/app/config/platConfig'
+import { useTransClient } from '@/app/i18n/client'
 import { useAccountStore } from '@/store/account'
 import styles from '../chooseAccountModule.module.scss'
 
-// 分组类型定义
+// Account group type
 interface AccountGroup {
   id: string
   name: string
@@ -21,22 +22,22 @@ interface AccountGroup {
 
 export interface ISimpleAccountChooseRef {
   /**
-   * 恢复选中状态
+   * Restore selected state
    */
   recover: () => void
-  // 每次关闭弹框的时候需要初始化一些状态
+  // Reset transient state when modal closes
   init: () => void
 }
 
 export interface ISimpleAccountChooseProps {
   onChange?: (choosedAcounts: SocialAccount[], choosedAcount: SocialAccount) => void
-  // 外部传入的已经选中的数据，这个值只有在确认更改才会更新
+  // externally controlled selected accounts; updated only on confirm
   choosedAccounts?: SocialAccount[]
-  // 是否禁用多选，true=禁用，false=不禁用
+  // whether multi-select is disabled
   disableAllSelect?: boolean
-  // 是否可以取消已经选择的账户，默认为 false
+  // whether selected accounts can be deselected
   isCancelChooseAccount?: boolean
-  // 是否显示分组，默认为 true
+  // whether groups are shown
   showGroup?: boolean
 }
 
@@ -52,11 +53,12 @@ const SimpleAccountChoose = memo(
       }: ISimpleAccountChooseProps,
       ref: ForwardedRef<ISimpleAccountChooseRef>,
     ) => {
-      // 当前选择的账户数据
+      const { t } = useTransClient('account')
+      // currently selected accounts
       const [choosedAccountsList, setChoosedAccountsList] = useState<SocialAccount[]>([])
-      // 分组数据
+      // account groups
       const [accountGroupList, setAccountGroupList] = useState<AccountGroup[]>([])
-      // 每次change操作的数据
+      // most recent changed account
       const recentData = useRef<SocialAccount>()
       const { accountList } = useAccountStore(
         useShallow(state => ({
@@ -64,7 +66,7 @@ const SimpleAccountChoose = memo(
         })),
       )
 
-      // 获取分组数据
+      // fetch account groups
       const fetchAccountGroups = async () => {
         try {
           const res = await getAccountGroupApi()
@@ -74,7 +76,7 @@ const SimpleAccountChoose = memo(
             return
 
           const accountGroupList: AccountGroup[] = []
-          // key=组ID，val=账户组
+          // key=group id, value=group
           const accountGroupMap = new Map<string, AccountGroup>()
 
           const defaultGroup = groupList.find((v: any) => v.isDefault)!
@@ -101,18 +103,18 @@ const SimpleAccountChoose = memo(
           setAccountGroupList(accountGroupList)
         }
         catch (error) {
-          console.error('获取账户分组失败:', error)
+          console.error('Failed to fetch account groups:', error)
         }
       }
 
-      // 初始化分组数据
+      // initialize group data
       useEffect(() => {
         if (showGroup && accountList.length > 0) {
           fetchAccountGroups()
         }
       }, [showGroup, accountList])
 
-      // change事件
+      // notify on selection changes
       useEffect(() => {
         if (!recentData.current)
           return
@@ -132,13 +134,13 @@ const SimpleAccountChoose = memo(
         init,
       }))
 
-      // 全选/取消全选
+      // select / deselect all
       const handleSelectAll = (checked: boolean) => {
         recentData.current = accountList[0]
         setChoosedAccountsList(checked ? [...accountList] : [])
       }
 
-      // 选择/取消选择单个账户
+      // toggle a single account
       const handleSelectAccount = (account: SocialAccount) => {
         recentData.current = account
         setChoosedAccountsList((prev) => {
@@ -152,7 +154,7 @@ const SimpleAccountChoose = memo(
         })
       }
 
-      // 选择/取消选择分组内所有账户
+      // toggle all accounts in a group
       const handleSelectGroup = (group: AccountGroup, checked: boolean) => {
         if (!group.children || group.children.length === 0)
           return
@@ -163,18 +165,18 @@ const SimpleAccountChoose = memo(
           const selectedInGroup = prev.filter(account => groupAccountIds.includes(account.id))
 
           if (checked) {
-            // 选择分组内所有账户
+            // select all in group
             const otherAccounts = prev.filter(account => !groupAccountIds.includes(account.id))
             return [...otherAccounts, ...group.children!]
           }
           else {
-            // 取消选择分组内所有账户
+            // deselect all in group
             return prev.filter(account => !groupAccountIds.includes(account.id))
           }
         })
       }
 
-      // 渲染单个账户
+      // render single account
       const renderAccount = (account: SocialAccount) => {
         const platInfo = AccountPlatInfoMap.get(account.type)
         const isSelected = choosedAccountsList.some(item => item.id === account.id)
@@ -206,23 +208,27 @@ const SimpleAccountChoose = memo(
                 isPcNotSupported ? (
                   <>
                     <p>
-                      昵称：
+                      {t('nickname')}
+                      :
                       {account.nickname}
                     </p>
                     <p>
-                      平台：
+                      {t('platform')}
+                      :
                       {platInfo?.name}
                     </p>
-                    <p style={{ color: '#ff4d4f' }}>Web不支持该平台，请下载App</p>
+                    <p style={{ color: '#ff4d4f' }}>{t('chooseAccount.webUnsupportedPlatform')}</p>
                   </>
                 ) : (
                   <>
                     <p>
-                      昵称：
+                      {t('nickname')}
+                      :
                       {account.nickname}
                     </p>
                     <p>
-                      平台：
+                      {t('platform')}
+                      :
                       {platInfo?.name}
                     </p>
                   </>
@@ -253,7 +259,7 @@ const SimpleAccountChoose = memo(
         )
       }
 
-      // 渲染分组内容
+      // render grouped content
       const renderGroupContent = () => {
         if (!showGroup || accountGroupList.length === 0) {
           return (
@@ -312,10 +318,10 @@ const SimpleAccountChoose = memo(
               <Empty
                 description={(
                   <>
-                    无账户数据，请前往
+                    {t('chooseAccount.noAccountsPrefix')}
                     {' '}
-                    <Link href="/accounts">账户</Link>
-                    添加数据
+                    <Link href="/accounts">{t('accountManager')}</Link>
+                    {t('chooseAccount.noAccountsSuffix')}
                   </>
                 )}
               />
@@ -332,15 +338,15 @@ const SimpleAccountChoose = memo(
                     onChange={e => handleSelectAll(e.target.checked)}
                     checked={choosedAccountsList.length === accountList.length}
                   >
-                    选择所有账户
+                    {t('chooseAccount.selectAllAccounts')}
                   </Checkbox>
                 )}
                 <span className="simpleAccountChoose-count">
-                  已选择
+                  {t('userManage.selected')}
                   {' '}
                   {choosedAccountsList.length}
                   {' '}
-                  个
+                  {t('chooseAccount.countUnit')}
                 </span>
               </div>
 

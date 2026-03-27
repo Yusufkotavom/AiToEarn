@@ -1,6 +1,6 @@
 /**
- * ChooseAccountModule - 账号选择模块
- * 社交账号选择模块，支持平台筛选
+ * ChooseAccountModule
+ * Social account picker module with optional platform filtering support.
  */
 
 import type { ForwardedRef } from 'react'
@@ -10,6 +10,7 @@ import type {
   ISimpleAccountChooseRef,
 } from '@/components/ChooseAccountModule/components/SimpleAccountChoose'
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useTransClient } from '@/app/i18n/client'
 import SimpleAccountChoose from '@/components/ChooseAccountModule/components/SimpleAccountChoose'
 import { Modal } from '@/components/ui/modal'
 
@@ -20,11 +21,11 @@ export interface IChooseAccountModuleRef {
 export interface IChooseAccountModuleProps {
   open: boolean
   onClose: (open: boolean) => void
-  // 简化账户选择props
+  // Simplified account picker props
   simpleAccountChooseProps?: ISimpleAccountChooseProps
-  // 账户选择确认
+  // Confirm callback
   onAccountConfirm?: (accounts: SocialAccount[]) => void
-  // 账户选择change
+  // Change callback
   onAccountChange?: (accounts: SocialAccount[], account: SocialAccount) => void
 }
 
@@ -40,6 +41,7 @@ const ChooseAccountModule = memo(
       }: IChooseAccountModuleProps,
       ref: ForwardedRef<IChooseAccountModuleRef>,
     ) => {
+      const { t } = useTransClient('account')
       const [newChoosedAccounts, setNewChoosedAccounts] = useState<SocialAccount[]>([])
       const simpleAccountChooseRef = useRef<ISimpleAccountChooseRef>(null)
 
@@ -74,7 +76,7 @@ const ChooseAccountModule = memo(
       useImperativeHandle(ref, () => ImperativeHandle)
 
       return (
-        <Modal width={800} title="账户选择" open={open} onOk={handleOk} onCancel={handleCancel}>
+        <Modal width={800} title={t('chooseAccount.title')} open={open} onOk={handleOk} onCancel={handleCancel}>
           {simpleAccountChooseProps && (
             <SimpleAccountChoose
               {...simpleAccountChooseProps}

@@ -182,6 +182,16 @@
     "accounts": "个账号",
     "deleteAccount": "删除账号"
   },
+  "chooseAccount": {
+    "title": "账户选择",
+    "noAccountsPrefix": "无账户数据，请前往",
+    "noAccountsSuffix": "添加数据",
+    "selectAllAccounts": "选择所有账户",
+    "selectAllPlatformAccounts": "选择所有平台账户",
+    "selectAllSelected": "全选 已选择",
+    "webUnsupportedPlatform": "Web不支持该平台，请下载App",
+    "countUnit": "个"
+  },
   "wechatBrowserTip": {
     "clickCorner": "点击右上角的",
     "dotsButton": "按钮",

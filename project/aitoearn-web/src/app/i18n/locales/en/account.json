@@ -182,6 +182,16 @@
     "accounts": "accounts",
     "deleteAccount": "Delete Accounts"
   },
+  "chooseAccount": {
+    "title": "Select Accounts",
+    "noAccountsPrefix": "No accounts found. Please go to",
+    "noAccountsSuffix": "to add accounts",
+    "selectAllAccounts": "Select all accounts",
+    "selectAllPlatformAccounts": "Select all platform accounts",
+    "selectAllSelected": "Select all, selected",
+    "webUnsupportedPlatform": "This platform is not supported on Web. Please use the App.",
+    "countUnit": "items"
+  },
   "wechatBrowserTip": {
     "clickCorner": "Click the top-right corner's",
     "dotsButton": "button",

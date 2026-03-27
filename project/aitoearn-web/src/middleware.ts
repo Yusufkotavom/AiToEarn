@@ -6,6 +6,29 @@ import { ProxyUrls } from '@/constant'
 
 acceptLanguage.languages(languages)
 
+function normalizeLanguageCode(rawLanguage?: string | null): string | undefined {
+  if (!rawLanguage)
+    return undefined
+
+  const detected = acceptLanguage.get(rawLanguage)
+  if (detected)
+    return detected
+
+  const languageCode = rawLanguage.split(',')[0]?.trim()
+  if (!languageCode)
+    return undefined
+
+  const [baseCode] = languageCode.split('-')
+  if (!baseCode)
+    return undefined
+
+  // normalize zh / zh-* into the supported zh-CN locale
+  if (baseCode === 'zh')
+    return languages.find(lang => lang.toLowerCase() === 'zh-cn')
+
+  return languages.find(lang => lang.toLowerCase() === baseCode.toLowerCase())
+}
+
 export const config = {
   // matcher: '/:lng*'
   matcher: ['/((?!api|_next/static|_next/image|assets|favicon.ico|sw.js|site.webmanifest).*)'],
@@ -39,9 +62,9 @@ export function middleware(req: NextRequest) {
   }
   let lng: string | undefined | null
   if (req.cookies.has(cookieName))
-    lng = acceptLanguage.get(req.cookies.get(cookieName)?.value)
+    lng = normalizeLanguageCode(req.cookies.get(cookieName)?.value)
   if (!lng)
-    lng = acceptLanguage.get(req.headers.get('Accept-Language'))
+    lng = normalizeLanguageCode(req.headers.get('Accept-Language'))
   if (!lng)
     lng = fallbackLng
 
