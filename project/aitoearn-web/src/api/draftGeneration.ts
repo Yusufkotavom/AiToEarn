@@ -135,5 +135,6 @@ export function apiGetDraftGenerationList(page: number = 1, pageSize: number = 1
   return http.get<DraftGenerationTaskListVo>(
     'ai/draft-generation/',
     { page, pageSize },
+    true,
   )
 }
