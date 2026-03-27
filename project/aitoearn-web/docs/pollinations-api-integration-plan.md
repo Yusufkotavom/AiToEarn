@@ -155,6 +155,48 @@ Response (async, umumnya video):
 2. Observability: latency, success rate, fail reason.
 3. Guardrails ukuran/durasi agar biaya terkendali.
 
+## 5.1 Status Update Branch `work` (per 2026-03-27)
+
+### ✅ Yang sudah terimplementasi
+- Pollinations channel sudah ditambahkan ke enum logging AI (`AiLogChannel.Pollinations`).
+- Backend sudah support generate image Pollinations melalui mapping model:
+  - `pollinations-flux` -> `flux`
+  - `pollinations-gptimage` -> `gptimage`
+  - `pollinations-imagen` -> `imagen`
+- Backend sudah support generate video Pollinations melalui mapping model:
+  - `pollinations-veo-3.1` -> `veo-3.1`
+  - `pollinations-seedance` -> `seedance`
+- Konfigurasi env/config Pollinations sudah masuk (`imageBaseUrl`, `videoBaseUrl`, `appUrl`, `secretKey`, `publishableKey`).
+- MCP media tool sudah expose generate image/video Pollinations untuk skenario agent.
+- Web flow generate image sudah mulai di-wire ke endpoint image model API.
+
+### 🟡 Sedang berjalan / parsial
+- Penyelarasan kontrak respons final lintas backend-web-electron masih parsial (khususnya status async video agar konsisten `queued/running/success/failed`).
+- Integrasi penuh progress UI video async di web masih perlu verifikasi end-to-end pada alur publish.
+
+### 🔜 Next Step prioritas
+1. Finalisasi endpoint status/polling video Pollinations dengan shape respons yang stabil untuk consumer.
+2. Tambah test minimum backend (unit mapping + integration untuk generate/polling).
+3. Tambah verifikasi frontend (type-check + UI state: submitted/processing/failed/success).
+4. Lakukan validasi kompatibilitas electron terhadap model/provider baru.
+
+### Checklist fase implementasi (living checklist)
+- [x] Phase 0.1 Verifikasi endpoint image/video Pollinations.
+- [x] Phase 0.2 Tentukan parameter minimum stabil (model, width, height, duration, seed).
+- [ ] Phase 0.3 Finalisasi schema normalisasi internal `image|video` end-to-end.
+- [x] Phase 1.1 Tambah enum/channel provider Pollinations.
+- [x] Phase 1.2 Implement generate image Pollinations.
+- [x] Phase 1.3 Implement generate video Pollinations.
+- [ ] Phase 1.4 Standarisasi error mapping provider Pollinations.
+- [x] Phase 1.5 Tambah env config Pollinations di runtime config.
+- [x] Phase 2.1 Mulai wiring web flow generate image.
+- [ ] Phase 2.2 Sinkronisasi penuh progress/status video async di UI.
+- [ ] Phase 2.3 Verifikasi penyimpanan hasil video ke material/asset flow existing.
+- [ ] Phase 2.4 Verifikasi parity di electron.
+- [ ] Phase 3.1 Retry/fallback policy (`auto`).
+- [ ] Phase 3.2 Observability latency/success/failure reason.
+- [ ] Phase 3.3 Guardrails resolusi/durasi untuk kontrol biaya.
+
 ---
 
 ## 6) Testing Minimum
