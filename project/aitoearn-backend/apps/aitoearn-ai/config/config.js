@@ -46,6 +46,17 @@ const {
   SERVER_URL,
 } = process.env
 
+const {
+  PLAYWRIGHT_RELAY_ENABLED,
+  PLAYWRIGHT_RELAY_BASE_URL,
+  PLAYWRIGHT_RELAY_API_KEY,
+  PLAYWRIGHT_RELAY_TIMEOUT_MS,
+  PLAYWRIGHT_RELAY_GEN_IMAGE_MODE,
+  PLAYWRIGHT_RELAY_GEN_VIDEO_MODE,
+  PLAYWRIGHT_RELAY_IMAGE_PROVIDER,
+  PLAYWRIGHT_RELAY_VIDEO_PROVIDER,
+} = process.env
+
 function parseGeminiKeyPairs() {
   if (!GEMINI_KEY_PAIRS) {
     throw new Error('GEMINI_KEY_PAIRS 环境变量必须配置')
@@ -472,6 +483,16 @@ module.exports = {
           ],
         },
       ],
+    },
+    playwrightRelay: {
+      enabled: PLAYWRIGHT_RELAY_ENABLED === 'true',
+      baseUrl: PLAYWRIGHT_RELAY_BASE_URL || '',
+      apiKey: PLAYWRIGHT_RELAY_API_KEY || '',
+      timeoutMs: Number(PLAYWRIGHT_RELAY_TIMEOUT_MS || 120000),
+      genImageMode: PLAYWRIGHT_RELAY_GEN_IMAGE_MODE || 'api',
+      genVideoMode: PLAYWRIGHT_RELAY_GEN_VIDEO_MODE || 'api',
+      defaultImageProvider: PLAYWRIGHT_RELAY_IMAGE_PROVIDER || 'google-whisk',
+      defaultVideoProvider: PLAYWRIGHT_RELAY_VIDEO_PROVIDER || 'grok-imagine',
     },
   },
   agent: {

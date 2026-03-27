@@ -4,6 +4,7 @@ import { z } from 'zod'
 // 通用视频生成请求
 const videoGenerationRequestSchema = z.object({
   model: z.string().min(1).describe('模型名称'),
+  provider: z.enum(['grok-imagine', 'google-flow']).optional().describe('Playwright Relay provider'),
   prompt: z.string().min(1).max(4000).describe('提示词'),
   image: z.string().or(z.string().array()).optional().describe('图片URL或base64'),
   image_tail: z.string().optional().describe('尾帧图片URL或base64'),

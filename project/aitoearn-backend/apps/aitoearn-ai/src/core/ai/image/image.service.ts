@@ -13,6 +13,7 @@ import { GeminiService } from '../libs/gemini/gemini.service'
 import { OpenaiService } from '../libs/openai'
 import { ModelsConfigService } from '../models-config'
 import { calculatePricingPoints, ChatPricing } from '../pricing/pricing-calculator'
+import { PlaywrightRelayService } from '../relay/playwright-relay.service'
 import {
   GeminiImageGenerationDto,
   ImageEditDto,
@@ -41,7 +42,15 @@ export class ImageService {
     private readonly modelsConfigService: ModelsConfigService,
     private readonly queueService: QueueService,
     private readonly userRepo: UserRepository,
+    private readonly playwrightRelayService: PlaywrightRelayService,
   ) { }
+
+  private getErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message) {
+      return error.message
+    }
+    return fallback
+  }
 
   /**
    * 将 data uri 转换为 Uploadable
@@ -448,7 +457,7 @@ export class ImageService {
 
   /**
    * 获取图片生成模型参数
-   * @param data 查询参数，包含可选的 userId 和 userType，可用于后续个性化模型推荐
+   * @param _data 查询参数，包含可选的 userId 和 userType，可用于后续个性化模型推荐
    */
   async generationModelConfig(_data: ImageGenerationModelsQueryDto) {
     return this.modelsConfigService.config.image.generation
@@ -456,7 +465,7 @@ export class ImageService {
 
   /**
    * 获取图片编辑模型参数
-   * @param data 查询参数，包含可选的 userId 和 userType，可用于后续个性化模型推荐
+   * @param _data 查询参数，包含可选的 userId 和 userType，可用于后续个性化模型推荐
    */
   async editModelConfig(_data: ImageEditModelsQueryDto) {
     return this.modelsConfigService.config.image.edit
@@ -491,18 +500,54 @@ export class ImageService {
       startedAt: new Date(),
     })
 
-    // 添加队列任务
-    await this.queueService.addAiImageAsyncJob({
-      logId: log.id,
-      userId,
-      userType,
-      model: params.model,
-      channel: AiLogChannel.NewApi,
-      type: AiLogType.Image,
-      pricing,
-      request: { ...params, user: userId },
-      taskType: 'generation',
-    })
+    if (this.playwrightRelayService.isImageEnabled()) {
+      try {
+        const provider = params.provider || this.playwrightRelayService.getDefaultImageProvider()
+        const relayTask = await this.playwrightRelayService.createImageTask({
+          prompt: params.prompt,
+          model: params.model,
+          provider,
+          n: params.n,
+          quality: params.quality,
+          size: params.size,
+          style: params.style,
+          userId,
+          logId: log.id,
+        })
+        await this.aiLogRepo.updateById(log.id, {
+          taskId: relayTask.taskId,
+          response: {
+            relay: {
+              mode: 'playwright-relay',
+              taskId: relayTask.taskId,
+              provider,
+            },
+          },
+        })
+      }
+      catch (error: unknown) {
+        await this.aiLogRepo.updateById(log.id, {
+          status: AiLogStatus.Failed,
+          errorMessage: this.getErrorMessage(error, 'Failed to submit relay image generation task'),
+          duration: Date.now() - log.startedAt.getTime(),
+        })
+        throw error
+      }
+    }
+    else {
+      // 添加队列任务
+      await this.queueService.addAiImageAsyncJob({
+        logId: log.id,
+        userId,
+        userType,
+        model: params.model,
+        channel: AiLogChannel.NewApi,
+        type: AiLogType.Image,
+        pricing,
+        request: { ...params, user: userId },
+        taskType: 'generation',
+      })
+    }
 
     return {
       logId: log.id,
@@ -539,18 +584,53 @@ export class ImageService {
       startedAt: new Date(),
     })
 
-    // 添加队列任务
-    await this.queueService.addAiImageAsyncJob({
-      logId: log.id,
-      userId,
-      userType,
-      model: params.model,
-      channel: AiLogChannel.NewApi,
-      type: AiLogType.Image,
-      pricing,
-      request: { ...params, user: userId },
-      taskType: 'edit',
-    })
+    if (this.playwrightRelayService.isImageEnabled()) {
+      try {
+        const provider = params.provider || this.playwrightRelayService.getDefaultImageProvider()
+        const relayTask = await this.playwrightRelayService.createImageTask({
+          prompt: params.prompt,
+          model: params.model,
+          provider,
+          image: params.image,
+          mask: params.mask,
+          userId,
+          logId: log.id,
+          taskType: 'edit',
+        })
+        await this.aiLogRepo.updateById(log.id, {
+          taskId: relayTask.taskId,
+          response: {
+            relay: {
+              mode: 'playwright-relay',
+              taskId: relayTask.taskId,
+              provider,
+            },
+          },
+        })
+      }
+      catch (error: unknown) {
+        await this.aiLogRepo.updateById(log.id, {
+          status: AiLogStatus.Failed,
+          errorMessage: this.getErrorMessage(error, 'Failed to submit relay image edit task'),
+          duration: Date.now() - log.startedAt.getTime(),
+        })
+        throw error
+      }
+    }
+    else {
+      // 添加队列任务
+      await this.queueService.addAiImageAsyncJob({
+        logId: log.id,
+        userId,
+        userType,
+        model: params.model,
+        channel: AiLogChannel.NewApi,
+        type: AiLogType.Image,
+        pricing,
+        request: { ...params, user: userId },
+        taskType: 'edit',
+      })
+    }
 
     return {
       logId: log.id,
@@ -710,9 +790,38 @@ export class ImageService {
    * 查询任务状态
    */
   async getTaskStatus(logId: string) {
-    const log = await this.aiLogRepo.getById(logId)
+    let log = await this.aiLogRepo.getById(logId)
     if (!log) {
       throw new NotFoundException('任务不存在')
+    }
+
+    const relayTaskId = typeof log.response?.['relay'] === 'object'
+      ? (log.response?.['relay'] as Record<string, unknown>)['taskId'] as string | undefined
+      : undefined
+
+    if (relayTaskId && this.playwrightRelayService.isImageEnabled() && log.status === AiLogStatus.Generating) {
+      try {
+        const relayStatus = await this.playwrightRelayService.getTaskStatus(relayTaskId)
+        const response = {
+          ...(log.response || {}),
+          relay: {
+            ...(typeof log.response?.['relay'] === 'object' ? log.response['relay'] as Record<string, unknown> : {}),
+            status: relayStatus.status,
+          },
+          list: relayStatus.assets.filter(asset => asset.type === 'image').map(asset => ({
+            url: asset.url,
+          })),
+        } as Record<string, unknown>
+        log = await this.aiLogRepo.updateById(log.id, {
+          status: relayStatus.status,
+          response,
+          errorMessage: relayStatus.errorMessage,
+          duration: relayStatus.status === AiLogStatus.Generating ? log.duration : (Date.now() - log.startedAt.getTime()),
+        }) || log
+      }
+      catch (error) {
+        this.logger.warn({ logId, error }, 'Failed to fetch relay image task status')
+      }
     }
 
     // 提取图片信息

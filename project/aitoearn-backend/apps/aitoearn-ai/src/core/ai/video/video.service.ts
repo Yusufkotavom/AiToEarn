@@ -12,6 +12,7 @@ import {
   serializeModelTextCommand,
 } from '../libs/volcengine'
 import { ModelsConfigService } from '../models-config'
+import { PlaywrightRelayService } from '../relay/playwright-relay.service'
 import { AicsoGrokVideoCallbackDto, AicsoGrokVideoService } from './aicso-grok'
 import { AicsoVeoVideoCallbackDto, AicsoVeoVideoService } from './aicso-veo'
 import { GeminiVeoVideoCallbackDto, GeminiVideoService } from './gemini'
@@ -41,7 +42,15 @@ export class VideoService {
     private readonly aicsoVeoVideoService: AicsoVeoVideoService,
     private readonly aicsoGrokVideoService: AicsoGrokVideoService,
     private readonly geminiVideoService: GeminiVideoService,
+    private readonly playwrightRelayService: PlaywrightRelayService,
   ) {}
+
+  private getErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message) {
+      return error.message
+    }
+    return fallback
+  }
 
   /**
    * 将图片 URL 转为 R2 预签名 URL，绕过 CDN robots.txt 限制
@@ -104,6 +113,10 @@ export class VideoService {
    * 用户视频生成（通用接口）
    */
   async userVideoGeneration(request: UserVideoGenerationRequestDto) {
+    if (this.playwrightRelayService.isVideoEnabled()) {
+      return await this.handlePlaywrightRelayGeneration(request)
+    }
+
     const { model } = request
 
     const modelConfig = this.modelsConfigService.config.video.generation.find(m => m.name === model)
@@ -381,6 +394,12 @@ export class VideoService {
 
   private getChannelTaskResult(aiLog: AiLog) {
     switch (aiLog.channel) {
+      case AiLogChannel.NewApi:
+        return {
+          status: aiLog.status === AiLogStatus.Success ? TaskStatus.Success : TaskStatus.Failure,
+          videoUrl: aiLog.response?.['videoUrl'] as string | undefined,
+          error: aiLog.errorMessage ? { message: aiLog.errorMessage } : undefined,
+        }
       case AiLogChannel.Volcengine:
         return this.volcengineVideoService.getTaskResult(aiLog.response as unknown as GetVideoGenerationTaskResponse)
       case AiLogChannel.OpenAI:
@@ -404,10 +423,15 @@ export class VideoService {
   async getVideoTaskStatus(request: UserVideoTaskQueryDto) {
     const { taskId } = request
 
-    const aiLog = await this.aiLogRepo.getById(taskId)
+    let aiLog = await this.aiLogRepo.getById(taskId)
 
     if (aiLog == null || aiLog.type !== AiLogType.Video) {
       throw new AppException(ResponseCode.InvalidAiTaskId)
+    }
+
+    const relayTaskId = this.getRelayTaskId(aiLog)
+    if (relayTaskId && this.playwrightRelayService.isVideoEnabled() && aiLog.status === AiLogStatus.Generating) {
+      aiLog = await this.syncRelayVideoTask(aiLog, relayTaskId)
     }
     return this.transformToCommonResponse(aiLog)
   }
@@ -418,7 +442,15 @@ export class VideoService {
       type: AiLogType.Video,
     })
 
-    return [await Promise.all(aiLogs.map(log => this.transformToCommonResponse(log))), count] as const
+    const syncedLogs = await Promise.all(aiLogs.map(async (log) => {
+      const relayTaskId = this.getRelayTaskId(log)
+      if (relayTaskId && this.playwrightRelayService.isVideoEnabled() && log.status === AiLogStatus.Generating) {
+        return await this.syncRelayVideoTask(log, relayTaskId)
+      }
+      return log
+    }))
+
+    return [await Promise.all(syncedLogs.map(log => this.transformToCommonResponse(log))), count] as const
   }
 
   /**
@@ -426,5 +458,100 @@ export class VideoService {
    */
   async getVideoGenerationModelParams(_data: VideoGenerationModelsQueryDto) {
     return this.modelsConfigService.config.video.generation
+  }
+
+  private async handlePlaywrightRelayGeneration(request: UserVideoGenerationRequestDto) {
+    const { userId, userType, model, prompt, provider, ...params } = request
+    const selectedProvider = provider || this.playwrightRelayService.getDefaultVideoProvider()
+
+    const log = await this.aiLogRepo.create({
+      userId,
+      userType,
+      model,
+      channel: AiLogChannel.NewApi,
+      type: AiLogType.Video,
+      points: 0,
+      request: {
+        prompt,
+        model,
+        provider: selectedProvider,
+        ...params,
+      },
+      status: AiLogStatus.Generating,
+      startedAt: new Date(),
+    })
+
+    try {
+      const relayTask = await this.playwrightRelayService.createVideoTask({
+        userId,
+        logId: log.id,
+        model,
+        prompt,
+        provider: selectedProvider,
+        ...params,
+      })
+
+      await this.aiLogRepo.updateById(log.id, {
+        taskId: relayTask.taskId,
+        response: {
+          relay: {
+            mode: 'playwright-relay',
+            taskId: relayTask.taskId,
+            provider: selectedProvider,
+          },
+        },
+      })
+
+      return {
+        id: log.id,
+        status: TaskStatus.Submitted,
+        points: 0,
+      }
+    }
+    catch (error: unknown) {
+      await this.aiLogRepo.updateById(log.id, {
+        status: AiLogStatus.Failed,
+        errorMessage: this.getErrorMessage(error, 'Failed to submit relay video generation task'),
+        duration: Date.now() - log.startedAt.getTime(),
+      })
+      throw error
+    }
+  }
+
+  private getRelayTaskId(aiLog: AiLog) {
+    const relay = aiLog.response?.['relay']
+    if (relay && typeof relay === 'object') {
+      const taskId = (relay as Record<string, unknown>)['taskId']
+      if (typeof taskId === 'string' && taskId.length > 0) {
+        return taskId
+      }
+    }
+    return undefined
+  }
+
+  private async syncRelayVideoTask(aiLog: AiLog, relayTaskId: string) {
+    try {
+      const relayStatus = await this.playwrightRelayService.getTaskStatus(relayTaskId)
+      const videoAsset = relayStatus.assets.find(asset => asset.type === 'video')
+      const next = await this.aiLogRepo.updateById(aiLog.id, {
+        status: relayStatus.status,
+        response: {
+          ...(aiLog.response || {}),
+          relay: {
+            ...(typeof aiLog.response?.['relay'] === 'object' ? aiLog.response['relay'] as Record<string, unknown> : {}),
+            status: relayStatus.status,
+          },
+          videoUrl: videoAsset?.url,
+          thumbUrl: videoAsset?.thumbUrl,
+        },
+        errorMessage: relayStatus.errorMessage,
+        duration: relayStatus.status === AiLogStatus.Generating ? aiLog.duration : (Date.now() - aiLog.startedAt.getTime()),
+      })
+      return next || aiLog
+    }
+    catch (error) {
+      this.logger.warn({ taskId: aiLog.id, relayTaskId, error }, 'Failed to sync relay video task status')
+      return aiLog
+    }
   }
 }

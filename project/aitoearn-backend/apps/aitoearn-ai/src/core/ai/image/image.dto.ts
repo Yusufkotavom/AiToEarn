@@ -5,6 +5,7 @@ import { z } from 'zod'
 const imageGenerationSchema = z.object({
   prompt: z.string().min(1).max(4000).describe('图片描述提示'),
   model: z.string().describe('图片生成模型'),
+  provider: z.enum(['google-whisk', 'google-flow', 'grok-imagine']).optional().describe('Playwright Relay provider'),
   n: z.number().int().min(1).max(10).optional().describe('生成图片数量'),
   quality: z.string().optional().describe('图片质量'),
   response_format: z.enum(['url', 'b64_json']).optional().describe('返回格式'),
@@ -18,6 +19,7 @@ export class ImageGenerationDto extends createZodDto(imageGenerationSchema) {}
 // 图片编辑请求
 const imageEditSchema = z.object({
   model: z.string().describe('图片编辑模型'),
+  provider: z.enum(['google-whisk', 'google-flow']).optional().describe('Playwright Relay provider'),
   image: z.string().or(z.string().array()).describe('原始图片'),
   prompt: z.string().min(1).max(4000).describe('编辑描述'),
   mask: z.string().optional().describe('遮罩图片'),

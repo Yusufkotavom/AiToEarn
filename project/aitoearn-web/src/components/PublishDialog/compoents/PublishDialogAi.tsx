@@ -352,6 +352,10 @@ const PublishDialogAi = memo(
         const savedModel = localStorage.getItem('ai_video_model')
         return savedModel || ''
       })
+      const [selectedVideoProvider, setSelectedVideoProvider] = useState(() => {
+        const savedProvider = localStorage.getItem('ai_video_provider')
+        return savedProvider || 'auto'
+      })
       const [videoTaskId, setVideoTaskId] = useState<string | null>(null)
       const [videoStatus, setVideoStatus] = useState<string>('')
       const [videoProgress, setVideoProgress] = useState(0)
@@ -458,14 +462,14 @@ const PublishDialogAi = memo(
           try {
             const res: any = await getVideoTaskStatus(taskId)
             if (res.data) {
-              const { status, fail_reason, progress, data }: any = res.data
+              const { status, fail_reason, progress, data, videoUrl, error }: any = res.data
               const up = typeof status === 'string' ? status.toUpperCase() : ''
               const normalized
                 = up === 'SUCCESS'
                   ? 'completed'
                   : up === 'FAILED'
                     ? 'failed'
-                    : up === 'PROCESSING'
+                    : up === 'PROCESSING' || up === 'INPROGRESS'
                       ? 'processing'
                       : up === 'NOT_START'
                         || up === 'NOT_STARTED'
@@ -485,9 +489,8 @@ const PublishDialogAi = memo(
               }
 
               if (normalized === 'completed') {
-                const videoUrl = res.data?.data?.video_url || data?.video_url
-                console.log('videoUrl', videoUrl)
-                setVideoResult(videoUrl)
+                const finalVideoUrl = videoUrl || data?.video_url || data?.videoUrl
+                setVideoResult(finalVideoUrl)
                 setVideoProgress(100)
 
                 // Update last message, embed video (using custom marker)
@@ -500,7 +503,7 @@ const PublishDialogAi = memo(
                     // Save original video URL to message for syncing
                     newMessages[newMessages.length - 1] = {
                       ...newMessages[newMessages.length - 1],
-                      content: `${t('aiFeatures.videoReady' as any)}\n\n__VIDEO__${videoUrl}__VIDEO__`,
+                      content: `${t('aiFeatures.videoReady' as any)}\n\n__VIDEO__${finalVideoUrl}__VIDEO__`,
                     }
                   }
                   return newMessages
@@ -512,7 +515,7 @@ const PublishDialogAi = memo(
               }
               if (normalized === 'failed') {
                 setVideoProgress(0)
-                toast.error(fail_reason || t('aiFeatures.videoFailed' as any))
+                toast.error(fail_reason || error?.message || t('aiFeatures.videoFailed' as any))
                 setMessages(prev => prev.slice(0, -1))
                 setIsProcessing(false)
                 return true
@@ -610,14 +613,18 @@ const PublishDialogAi = memo(
               duration,
               size,
             }
+            if (selectedVideoProvider !== 'auto') {
+              data.provider = selectedVideoProvider
+            }
 
             const res: any = await generateVideo(data)
 
-            if (res?.data?.task_id) {
-              setVideoTaskId(res.data.task_id)
-              setVideoStatus(res.data.status)
+            const taskId = res?.data?.task_id || res?.data?.id
+            if (taskId) {
+              setVideoTaskId(taskId)
+              setVideoStatus(res.data.status || 'submitted')
               toast.success(t('aiFeatures.videoTaskSubmitted' as any))
-              pollVideoTaskStatus(res.data.task_id)
+              pollVideoTaskStatus(taskId)
             }
             else {
               throw new Error(t('aiFeatures.videoGenerationFailed' as any))
@@ -631,7 +638,7 @@ const PublishDialogAi = memo(
             setIsProcessing(false)
           }
         },
-        [selectedVideoModel, videoModels, pollVideoTaskStatus, t],
+        [selectedVideoModel, selectedVideoProvider, videoModels, pollVideoTaskStatus, t],
       )
 
       // Handle AI response
@@ -1597,6 +1604,34 @@ const PublishDialogAi = memo(
                     </div>
                   )
                 })()}
+            </div>
+
+            {/* Video relay provider selection */}
+            <div className="mb-4">
+              <div className="mb-2 font-bold flex items-center">
+                <Video className="h-4 w-4 mr-2" />
+                Video Provider (Relay)
+              </div>
+              <Select
+                value={selectedVideoProvider}
+                onValueChange={(value) => {
+                  setSelectedVideoProvider(value)
+                  localStorage.setItem('ai_video_provider', value)
+                  toast.success('Video provider saved')
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select relay provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto (backend default)</SelectItem>
+                  <SelectItem value="grok-imagine">Grok Imagine</SelectItem>
+                  <SelectItem value="google-flow">Google Flow</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="mt-2 text-xs text-muted-foreground">
+                This setting is used when backend relay mode is enabled.
+              </div>
             </div>
 
             {/* Custom prompts editor */}
