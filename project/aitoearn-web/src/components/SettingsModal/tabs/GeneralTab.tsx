@@ -1,4 +1,4 @@
-/**
+a/**
  * GeneralTab - 通用设置 Tab
  */
 
@@ -82,19 +82,6 @@ export function GeneralTab() {
       console.error('Language change failed:', error);
     } finally {
       setIsChangingLanguage(false); // Always reset
-    }
-  };
-
-  const handleSaveApiKeys = async () => {
-    setSavingApiKeys(true);
-    try {
-      updateKeys({
-        groqApiKey: groqApiKey.trim(),
-        geminiApiKey: geminiApiKey.trim(),
-      });
-      toast.success(t('general.apiKeysSaved'));
-    } finally {
-      setSavingApiKeys(false); // Always reset
     }
   };
 
