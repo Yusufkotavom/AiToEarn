@@ -13,6 +13,7 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ReactSortable } from 'react-sortablejs'
 import { CSSTransition, TransitionGroup } from 'react-transition-group'
+import { apiGetMetadataSettings, apiUpdateMetadataSettings } from '@/api/metadataGeneration'
 import { AccountPlatInfoMap, PlatType } from '@/app/config/platConfig'
 import { PubType } from '@/app/config/publishConfig'
 import { useTransClient } from '@/app/i18n/client'
@@ -213,6 +214,12 @@ const MobileContent = memo(
           onOpenChange={(open) => {
             setSettingsOpen(open)
             if (open) {
+              void (async () => {
+                const remote = await apiGetMetadataSettings()
+                if (remote?.code === 0 && remote.data) {
+                  updateSettings(remote.data)
+                }
+              })()
               setDraftPromptTemplate(settings.promptTemplate)
               setDraftModel(settings.model || '')
             }
@@ -222,9 +229,15 @@ const MobileContent = memo(
           onStrategyChange={strategy => updateSettings({ strategy })}
           onPromptTemplateChange={setDraftPromptTemplate}
           onSave={() => {
-            updateSettings({
+            const nextSettings = {
               promptTemplate: draftPromptTemplate || settings.promptTemplate,
               model: draftModel || settings.model,
+            }
+            updateSettings(nextSettings)
+            void apiUpdateMetadataSettings({
+              provider: settings.provider,
+              strategy: settings.strategy,
+              ...nextSettings,
             })
             setSettingsOpen(false)
           }}

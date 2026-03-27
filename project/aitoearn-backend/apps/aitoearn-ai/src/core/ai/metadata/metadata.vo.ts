@@ -15,3 +15,27 @@ export const generateMetadataVoSchema = z.object({
 })
 
 export class GenerateMetadataVo extends createZodDto(generateMetadataVoSchema, 'GenerateMetadataVo') {}
+
+export const createMetadataBatchVoSchema = z.object({
+  jobId: z.string(),
+})
+
+export class CreateMetadataBatchVo extends createZodDto(createMetadataBatchVoSchema, 'CreateMetadataBatchVo') {}
+
+export const metadataBatchItemVoSchema = z.object({
+  index: z.number(),
+  status: z.enum(['queued', 'running', 'success', 'failed']),
+  result: generateMetadataVoSchema.optional(),
+  error: z.string().optional(),
+})
+
+export const metadataBatchStatusVoSchema = z.object({
+  jobId: z.string(),
+  status: z.enum(['queued', 'running', 'completed', 'failed']),
+  total: z.number(),
+  successCount: z.number(),
+  failedCount: z.number(),
+  items: z.array(metadataBatchItemVoSchema),
+})
+
+export class MetadataBatchStatusVo extends createZodDto(metadataBatchStatusVoSchema, 'MetadataBatchStatusVo') {}

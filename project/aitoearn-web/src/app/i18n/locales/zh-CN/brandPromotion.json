@@ -290,6 +290,9 @@
     "batchGenerateMetadata": "批量生成元数据",
     "batchGenerateMetadataStarted": "已为 {{count}} 条草稿启动元数据生成",
     "batchGenerateMetadataFailed": "启动元数据生成失败",
+    "batchGenerateProgress": "批量进度：成功 {{success}} / 失败 {{failed}} / 总计 {{total}}",
+    "batchGenerateRetryFailed": "重试失败项",
+    "batchGenerateRetryStarted": "已启动 {{count}} 条失败项重试",
     "cancel": "取消",
     "generationDetail": "生成记录"
   },

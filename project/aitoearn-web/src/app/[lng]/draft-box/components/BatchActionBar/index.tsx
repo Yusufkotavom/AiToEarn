@@ -5,11 +5,12 @@
 
 'use client'
 
+import type { MetadataBatchStatusResponse } from '@/api/metadataGeneration'
 import type { PromotionMaterial } from '@/app/[lng]/brand-promotion/brandPromotionStore/types'
 import { Loader2, Sparkles, Trash2 } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { apiCreateMetadataBatch } from '@/api/metadataGeneration'
+import { apiCreateMetadataBatch, apiGetMetadataBatchJob } from '@/api/metadataGeneration'
 import { usePlanDetailStore } from '@/app/[lng]/brand-promotion/planDetailStore'
 import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,8 @@ import { useMetadataAiSettingsStore } from '../CreateMaterialModal/metadataAiSet
 const BatchActionBar = memo(() => {
   const { t } = useTransClient('brandPromotion')
   const [batchGenerating, setBatchGenerating] = useState(false)
+  const [activeJobId, setActiveJobId] = useState<string>()
+  const [batchStatus, setBatchStatus] = useState<MetadataBatchStatusResponse>()
 
   const { selectedMaterialIds, batchDeleting, materials } = usePlanDetailStore(
     useShallow(state => ({
@@ -53,6 +56,7 @@ const BatchActionBar = memo(() => {
     try {
       const response = await apiCreateMetadataBatch({
         provider: metadataSettings.provider,
+        model: metadataSettings.model,
         strategy: metadataSettings.strategy,
         promptTemplate: metadataSettings.promptTemplate,
         items: selectedMaterials.map((material) => {
@@ -79,6 +83,7 @@ const BatchActionBar = memo(() => {
         return
       }
 
+      setActiveJobId(response.data.jobId)
       toast.success(t('draftManage.batchGenerateMetadataStarted', { count: selectedMaterials.length }))
     }
     catch {
@@ -88,6 +93,80 @@ const BatchActionBar = memo(() => {
       setBatchGenerating(false)
     }
   }, [selectedMaterials, metadataSettings, t])
+
+  useEffect(() => {
+    if (!activeJobId)
+      return
+
+    let stopped = false
+    const run = async () => {
+      const response = await apiGetMetadataBatchJob(activeJobId)
+      if (stopped || response?.code !== 0 || !response?.data)
+        return
+      setBatchStatus(response.data)
+      if (response.data.status === 'completed' || response.data.status === 'failed') {
+        return
+      }
+      setTimeout(run, 1500)
+    }
+
+    void run()
+    return () => {
+      stopped = true
+    }
+  }, [activeJobId])
+
+  const handleRetryFailed = useCallback(async () => {
+    if (!batchStatus || batchStatus.failedCount === 0)
+      return
+    const failedItems = batchStatus.items.filter(item => item.status === 'failed')
+    const failedMaterials = failedItems
+      .map(item => selectedMaterials[item.index])
+      .filter(Boolean)
+
+    if (failedMaterials.length === 0)
+      return
+
+    setBatchGenerating(true)
+    try {
+      const response = await apiCreateMetadataBatch({
+        provider: metadataSettings.provider,
+        model: metadataSettings.model,
+        strategy: metadataSettings.strategy,
+        promptTemplate: metadataSettings.promptTemplate,
+        items: failedMaterials.map((material) => {
+          const tags = extractTags(material)
+          const platforms = (material.accountTypes || []).map(type => String(type))
+          return {
+            materialId: material.id,
+            title: material.title || '',
+            description: material.desc || '',
+            tags,
+            platforms,
+            prompt: buildPromptFromTemplate(metadataSettings.promptTemplate, {
+              title: material.title || '',
+              description: material.desc || '',
+              tags,
+              platforms,
+            }),
+          }
+        }),
+      })
+      if (response?.code !== 0 || !response?.data?.jobId) {
+        toast.error(response?.message || t('draftManage.batchGenerateMetadataFailed'))
+        return
+      }
+      setActiveJobId(response.data.jobId)
+      setBatchStatus(undefined)
+      toast.success(t('draftManage.batchGenerateRetryStarted', { count: failedMaterials.length }))
+    }
+    catch {
+      toast.error(t('draftManage.batchGenerateMetadataFailed'))
+    }
+    finally {
+      setBatchGenerating(false)
+    }
+  }, [batchStatus, selectedMaterials, metadataSettings, t])
 
   const handleDelete = useCallback(() => {
     const count = selectedMaterialIds.length
@@ -116,7 +195,29 @@ const BatchActionBar = memo(() => {
         <span data-testid="draftbox-batch-selected-count" className="text-sm text-muted-foreground">
           {t('draftManage.selectedCount', { count: selectedMaterialIds.length })}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {batchStatus && (
+            <div className="text-xs text-muted-foreground mr-2">
+              {t('draftManage.batchGenerateProgress', {
+                success: batchStatus.successCount,
+                failed: batchStatus.failedCount,
+                total: batchStatus.total,
+              })}
+            </div>
+          )}
+          {batchStatus?.failedCount
+            ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleRetryFailed}
+                  disabled={batchGenerating}
+                  className="cursor-pointer"
+                >
+                  {t('draftManage.batchGenerateRetryFailed')}
+                </Button>
+              )
+            : null}
           <Button variant="ghost" size="sm" onClick={exitBatchMode} className="cursor-pointer">
             {t('draftManage.cancel')}
           </Button>

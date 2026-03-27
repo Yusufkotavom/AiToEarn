@@ -1,16 +1,39 @@
 import { AIMessageChunk } from '@langchain/core/messages'
 import { Injectable } from '@nestjs/common'
 import { AppException, ResponseCode, UserType } from '@yikart/common'
+import { UserRepository } from '@yikart/mongodb'
 import { ChatService } from '../chat'
 import { ModelsConfigService } from '../models-config'
-import { GenerateMetadataDto } from './metadata.dto'
-import { GenerateMetadataVo } from './metadata.vo'
+import { CreateMetadataBatchDto, GenerateMetadataDto, MetadataSettingsDto } from './metadata.dto'
+import { GenerateMetadataVo, MetadataBatchStatusVo } from './metadata.vo'
+
+type BatchItemStatus = 'queued' | 'running' | 'success' | 'failed'
+type BatchJobStatus = 'queued' | 'running' | 'completed' | 'failed'
+
+interface MetadataBatchJob {
+  jobId: string
+  userId: string
+  status: BatchJobStatus
+  total: number
+  successCount: number
+  failedCount: number
+  items: Array<{
+    index: number
+    status: BatchItemStatus
+    payload: GenerateMetadataDto['item']
+    result?: GenerateMetadataVo
+    error?: string
+  }>
+}
 
 @Injectable()
 export class MetadataService {
+  private readonly jobs = new Map<string, MetadataBatchJob>()
+
   constructor(
     private readonly chatService: ChatService,
     private readonly modelsConfigService: ModelsConfigService,
+    private readonly userRepo: UserRepository,
   ) {}
 
   private inferProviderByModel(model: string): 'groq' | 'gemini' {
@@ -27,36 +50,44 @@ export class MetadataService {
       throw new AppException(ResponseCode.InvalidModel)
     }
 
+    const pickByProvider = () => {
+      if (provider === 'auto') {
+        return chatModels[0]
+      }
+      const matched = chatModels.find((model) => {
+        const normalized = model.toLowerCase()
+        if (provider === 'gemini') {
+          return normalized.includes('gemini')
+        }
+        return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+      })
+      return matched ?? chatModels[0]
+    }
+
     if (requestedModel?.trim()) {
       const normalizedRequestedModel = requestedModel.trim()
-      if (!chatModels.includes(normalizedRequestedModel)) {
-        throw new AppException(ResponseCode.InvalidModel)
-      }
+      const exactMatchedModel = chatModels.find(model => model.toLowerCase() === normalizedRequestedModel.toLowerCase())
+      const fuzzyMatchedModel = exactMatchedModel
+        || chatModels.find(model => model.toLowerCase().includes(normalizedRequestedModel.toLowerCase()))
+      const selectedModel = fuzzyMatchedModel ?? pickByProvider()
 
-      const modelName = normalizedRequestedModel.toLowerCase()
+      const modelName = selectedModel.toLowerCase()
       if (provider === 'gemini' && !modelName.includes('gemini')) {
-        throw new AppException(ResponseCode.InvalidModel, { error: 'Selected model is not a Gemini model' })
+        const fallbackGemini = chatModels.find(model => model.toLowerCase().includes('gemini'))
+        return fallbackGemini ?? selectedModel
       }
       if (provider === 'groq' && modelName.includes('gemini')) {
-        throw new AppException(ResponseCode.InvalidModel, { error: 'Selected model is not a Groq-compatible model' })
+        const fallbackGroq = chatModels.find((model) => {
+          const normalized = model.toLowerCase()
+          return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+        })
+        return fallbackGroq ?? selectedModel
       }
 
-      return normalizedRequestedModel
+      return selectedModel
     }
 
-    if (provider === 'auto') {
-      return chatModels[0]
-    }
-
-    const matched = chatModels.find((model) => {
-      const normalized = model.toLowerCase()
-      if (provider === 'gemini') {
-        return normalized.includes('gemini')
-      }
-      return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
-    })
-
-    return matched ?? chatModels[0]
+    return pickByProvider()
   }
 
   private pickGeminiModel(): string | undefined {
@@ -281,5 +312,113 @@ export class MetadataService {
       model,
       usage,
     }
+  }
+
+  private toBatchStatusVo(job: MetadataBatchJob): MetadataBatchStatusVo {
+    return {
+      jobId: job.jobId,
+      status: job.status,
+      total: job.total,
+      successCount: job.successCount,
+      failedCount: job.failedCount,
+      items: job.items.map(item => ({
+        index: item.index,
+        status: item.status,
+        result: item.result,
+        error: item.error,
+      })),
+    }
+  }
+
+  async createBatch(userId: string, request: CreateMetadataBatchDto): Promise<{ jobId: string }> {
+    const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const job: MetadataBatchJob = {
+      jobId,
+      userId,
+      status: 'queued',
+      total: request.items.length,
+      successCount: 0,
+      failedCount: 0,
+      items: request.items.map((payload, index) => ({
+        index,
+        status: 'queued',
+        payload,
+      })),
+    }
+
+    this.jobs.set(jobId, job)
+    void this.processBatch(jobId, request)
+    return { jobId }
+  }
+
+  private async processBatch(jobId: string, request: CreateMetadataBatchDto): Promise<void> {
+    const job = this.jobs.get(jobId)
+    if (!job) {
+      return
+    }
+
+    job.status = 'running'
+
+    for (const item of job.items) {
+      item.status = 'running'
+      try {
+        const result = await this.generateMetadata(job.userId, {
+          provider: request.provider,
+          model: request.model,
+          promptTemplate: request.promptTemplate,
+          strategy: request.strategy,
+          item: item.payload,
+        })
+        item.result = result
+        item.status = 'success'
+        job.successCount += 1
+      }
+      catch (error) {
+        item.status = 'failed'
+        item.error = error instanceof Error ? error.message : 'Unknown error'
+        job.failedCount += 1
+      }
+    }
+
+    job.status = job.failedCount > 0 ? 'failed' : 'completed'
+  }
+
+  async getBatchStatus(userId: string, jobId: string): Promise<MetadataBatchStatusVo> {
+    const job = this.jobs.get(jobId)
+    if (!job || job.userId !== userId) {
+      throw new AppException(ResponseCode.InvalidAiTaskId, { error: 'Invalid jobId' })
+    }
+    return this.toBatchStatusVo(job)
+  }
+
+  async getSettings(userId: string): Promise<MetadataSettingsDto> {
+    const user = await this.userRepo.getById(userId)
+    const option = user?.aiInfo?.agent?.option as Record<string, unknown> | undefined
+    const metadata = option?.['metadataGeneration'] as Partial<MetadataSettingsDto> | undefined
+
+    return {
+      provider: metadata?.provider || 'groq',
+      model: metadata?.model,
+      promptTemplate: metadata?.promptTemplate || '',
+      strategy: metadata?.strategy || 'replace_empty',
+    }
+  }
+
+  async updateSettings(userId: string, settings: MetadataSettingsDto): Promise<MetadataSettingsDto> {
+    const user = await this.userRepo.getById(userId)
+    const existingAgentInfo = user?.aiInfo?.agent
+    const option = (existingAgentInfo?.option as Record<string, unknown> | undefined) || {}
+
+    const mergedOption = {
+      ...option,
+      metadataGeneration: settings,
+    }
+
+    await this.userRepo.updateAiConfigItemById(userId, 'agent', {
+      defaultModel: existingAgentInfo?.defaultModel || settings.model || 'gpt-4o-mini',
+      option: mergedOption,
+    })
+
+    return settings
   }
 }
