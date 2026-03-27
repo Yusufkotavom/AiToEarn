@@ -159,7 +159,7 @@ services:
 
       SERVER_URL: http://aitoearn-server:3002
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:9000","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:8080/oss","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
 
       OPENAI_API_KEY: sk-placeholder
       OPENAI_BASE_URL: https://api.openai.com/v1
@@ -228,7 +228,7 @@ services:
       JWT_SECRET: change-this-jwt-secret
       INTERNAL_TOKEN: change-this-secret-token
 
-      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:9000","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
+      ASSETS_CONFIG: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"http://rustfs.local:9000","publicEndpoint":"http://localhost:9000","cdnEndpoint":"http://localhost:8080/oss","accessKeyId":"rustfsadmin","secretAccessKey":"rustfsadmin","forcePathStyle":true}'
 
       MAIL_USER: ""
       MAIL_PASS: ""
