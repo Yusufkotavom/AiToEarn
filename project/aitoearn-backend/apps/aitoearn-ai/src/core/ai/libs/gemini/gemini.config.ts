@@ -9,7 +9,7 @@ export const geminiKeyManagerConfigSchema = z.object({
 
 export const geminiKeyPairSchema = z.object({
   projectId: z.string().describe('Google Cloud Project ID (also used as Key Pair ID)'),
-  apiKey: z.string().describe('Vertex AI API Key'),
+  apiKey: z.string().optional().default('').describe('Deprecated: Vertex AI API Key (not used for Vertex auth)'),
   keyFile: z.string().describe('GCS 服务账号 JSON 文件路径'),
   bucket: z.string().describe('GCS Bucket 名称'),
 })

@@ -357,20 +357,46 @@ export function useCreateMaterialForm({
       const nextDescription = settings.strategy === 'replace_all'
         ? (generated.description || params.des)
         : (params.des.trim() ? params.des : (generated.description || params.des))
-      const nextTags = (generated.tags || []).filter(Boolean).slice(0, 10)
-      const shouldAppendTags
-        = settings.strategy === 'replace_all'
-          ? true
-          : !params.des.trim()
-      const tagSuffix = shouldAppendTags && nextTags.length > 0
-        ? `\n\n${nextTags.map(tag => `#${tag}`).join(' ')}`
-        : ''
+      const generatedTags = Array.from(new Set((generated.tags || []).filter(Boolean).slice(0, 10)))
+      const descriptionLines = nextDescription.split('\n')
+      while (descriptionLines.length > 0) {
+        const lastLine = descriptionLines[descriptionLines.length - 1]?.trim() || ''
+        if (!lastLine) {
+          descriptionLines.pop()
+          continue
+        }
+        const isHashtagLine = lastLine
+          .split(/\s+/)
+          .every(word => word.startsWith('#'))
+        if (isHashtagLine) {
+          descriptionLines.pop()
+          continue
+        }
+        break
+      }
+      const descriptionWithoutTags = descriptionLines.join('\n').trim()
+      const existingDescriptionTags = extractHashTags(nextDescription)
+      const finalTags = settings.strategy === 'replace_all'
+        ? generatedTags
+        : (existingDescriptionTags.length > 0 ? existingDescriptionTags : generatedTags)
+      const nextDes = finalTags.length > 0
+        ? `${descriptionWithoutTags}\n\n${finalTags.map(tag => `#${tag}`).join(' ')}`
+        : nextDescription.trim()
+      const hasContentChanged = nextTitle !== params.title || nextDes !== params.des
 
       updateParams({
         title: nextTitle,
-        des: `${nextDescription}${tagSuffix}`.trim(),
+        des: nextDes,
       })
-      toast.success(t('createMaterial.metadataGenerateSuccess'))
+      if (generated.model === 'local-fallback') {
+        toast.info(t('createMaterial.metadataGenerateFallbackUsed'))
+      }
+      else if (!hasContentChanged && settings.strategy === 'replace_empty') {
+        toast.info(t('createMaterial.metadataGenerateNoChanges'))
+      }
+      else {
+        toast.success(t('createMaterial.metadataGenerateSuccess'))
+      }
       return true
     }
     catch {

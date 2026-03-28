@@ -328,6 +328,8 @@
     "metadataResetPrompt": "恢复默认提示词",
     "apiKeyLocationHint": "API Key 从服务端环境变量读取（GROQ_API_KEY / GEMINI_API_KEY）。",
     "metadataGenerateSuccess": "元数据生成成功",
+    "metadataGenerateNoChanges": "元数据已生成，但未改动字段（当前为仅填充空字段）。",
+    "metadataGenerateFallbackUsed": "AI 提供方调用失败，当前展示本地兜底元数据。",
     "metadataGenerateFailed": "元数据生成失败",
     "instagramImageAspectRatio": "Instagram 图片宽高比需在 4:5 ~ 1.91:1 范围内",
     "instagramVideoAspectRatio": "Instagram 视频宽高比需在 9:16 ~ 4:5 范围内",

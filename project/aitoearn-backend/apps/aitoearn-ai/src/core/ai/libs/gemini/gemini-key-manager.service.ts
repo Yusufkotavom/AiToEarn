@@ -13,6 +13,11 @@ import {
 } from './gemini-key-manager.interface'
 import { GeminiConfig, GeminiKeyManagerConfig, GeminiKeyPair } from './gemini.config'
 
+interface ServiceAccountCredentials {
+  client_email?: string
+  private_key?: string
+}
+
 @Injectable()
 export class GeminiKeyManagerService {
   private readonly logger = new Logger(GeminiKeyManagerService.name)
@@ -21,6 +26,13 @@ export class GeminiKeyManagerService {
   private readonly redisKeyPrefix: string
   private readonly storageClientCache = new Map<string, Storage>()
   private readonly genAiClientCache = new Map<string, GoogleGenAI>()
+
+  private getUsableKeyPairs(): GeminiKeyPair[] {
+    return this.keyPairs.filter((pair) => {
+      const keyPairId = pair.projectId
+      return this.storageClientCache.has(keyPairId) && this.genAiClientCache.has(keyPairId)
+    })
+  }
 
   constructor(
     private readonly config: GeminiConfig,
@@ -39,9 +51,26 @@ export class GeminiKeyManagerService {
   private initializeClients(): void {
     for (const pair of this.keyPairs) {
       const keyPairId = pair.projectId
+      let credentials: ServiceAccountCredentials
+
+      try {
+        credentials = JSON.parse(fs.readFileSync(pair.keyFile, 'utf-8')) as ServiceAccountCredentials
+      }
+      catch (error) {
+        this.logger.error({ keyPairId, keyFile: pair.keyFile, error }, 'Failed to parse Gemini keyFile JSON, skipping key pair')
+        continue
+      }
+
+      if (!credentials.client_email || !credentials.private_key) {
+        this.logger.error(
+          { keyPairId, keyFile: pair.keyFile },
+          'Invalid service-account JSON in keyFile (missing client_email/private_key), skipping key pair',
+        )
+        continue
+      }
 
       const storage = new Storage({
-        credentials: JSON.parse(fs.readFileSync(pair.keyFile, 'utf-8')),
+        credentials,
         ...(this.config.proxyUrl && {
           apiEndpoint: `${this.config.proxyUrl}/https://storage.googleapis.com`,
         }),
@@ -53,7 +82,7 @@ export class GeminiKeyManagerService {
         project: pair.projectId,
         location: this.config.location,
         googleAuthOptions: {
-          apiKey: pair.apiKey,
+          credentials,
         },
       })
 
@@ -70,6 +99,10 @@ export class GeminiKeyManagerService {
         { keyPairId, bucket: pair.bucket },
         'Initialized Storage and GenAI clients',
       )
+    }
+
+    if (this.genAiClientCache.size === 0) {
+      this.logger.warn('No valid Gemini key pairs loaded. Gemini features are disabled until keyFile is fixed.')
     }
   }
 
@@ -102,11 +135,15 @@ export class GeminiKeyManagerService {
   }
 
   async selectKeyPair(): Promise<GeminiKeyPairSelection> {
+    if (this.getUsableKeyPairs().length === 0) {
+      throw new Error('Gemini key pairs are not configured. Configure GEMINI_KEY_PAIRS with valid service-account keyFile.')
+    }
+
     const now = Date.now()
     const availablePairs: { pair: GeminiKeyPair, state: GeminiKeyPairState }[] = []
     let shortestCooldownPair: { pair: GeminiKeyPair, cooldownUntil: number } | null = null
 
-    for (const pair of this.keyPairs) {
+    for (const pair of this.getUsableKeyPairs()) {
       const keyPairId = pair.projectId
       let state = await this.getKeyPairState(keyPairId)
 
@@ -145,7 +182,7 @@ export class GeminiKeyManagerService {
         )
         return {
           keyPairId,
-          apiKey: shortestCooldownPair.pair.apiKey,
+          apiKey: shortestCooldownPair.pair.apiKey || '',
           projectId: shortestCooldownPair.pair.projectId,
           bucket: shortestCooldownPair.pair.bucket,
           storageClient: this.storageClientCache.get(keyPairId)!,
@@ -162,7 +199,7 @@ export class GeminiKeyManagerService {
 
     return {
       keyPairId,
-      apiKey: selected.pair.apiKey,
+      apiKey: selected.pair.apiKey || '',
       projectId: selected.pair.projectId,
       bucket: selected.pair.bucket,
       storageClient: this.storageClientCache.get(keyPairId)!,
@@ -184,7 +221,7 @@ export class GeminiKeyManagerService {
   }
 
   getDefaultKeyPairId(): string {
-    return this.keyPairs[0]?.projectId || ''
+    return this.getUsableKeyPairs()[0]?.projectId || ''
   }
 
   async markKeySuccess(keyPairId: string): Promise<void> {
@@ -206,7 +243,7 @@ export class GeminiKeyManagerService {
 
   private async countAvailableKeyPairs(excludeKeyPairId?: string): Promise<number> {
     const now = Date.now()
-    const filteredPairs = this.keyPairs.filter(
+    const filteredPairs = this.getUsableKeyPairs().filter(
       p => !excludeKeyPairId || p.projectId !== excludeKeyPairId,
     )
 
@@ -311,7 +348,7 @@ export class GeminiKeyManagerService {
 
   async getAllKeyPairStatus(): Promise<GeminiKeyPairState[]> {
     const states: GeminiKeyPairState[] = []
-    for (const pair of this.keyPairs) {
+    for (const pair of this.getUsableKeyPairs()) {
       const keyPairId = pair.projectId
       const state = await this.getKeyPairState(keyPairId)
       states.push(state || this.createDefaultState(keyPairId))
