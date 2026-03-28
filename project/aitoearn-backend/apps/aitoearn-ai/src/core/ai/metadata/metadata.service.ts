@@ -46,6 +46,7 @@ export class MetadataService {
 
   private pickModel(provider: 'auto' | 'groq' | 'gemini', requestedModel?: string): string {
     const chatModels = this.modelsConfigService.config.chat.map(item => item.name)
+    const defaultGroqModel = 'llama-3.3-70b-versatile'
     if (chatModels.length === 0) {
       throw new AppException(ResponseCode.InvalidModel)
     }
@@ -72,7 +73,7 @@ export class MetadataService {
       const exactMatchedModel = chatModels.find(model => model.toLowerCase() === normalizedRequestedModel.toLowerCase())
       const fuzzyMatchedModel = exactMatchedModel
         || chatModels.find(model => model.toLowerCase().includes(normalizedRequestedModel.toLowerCase()))
-      const selectedModel = fuzzyMatchedModel ?? pickByProvider()
+      const selectedModel = fuzzyMatchedModel ?? normalizedRequestedModel
 
       const modelName = selectedModel.toLowerCase()
       if (provider === 'gemini' && !modelName.includes('gemini')) {
