@@ -25,6 +25,7 @@ const {
   OPENAI_BASE_URL,
   ANTHROPIC_BASE_URL,
   ANTHROPIC_API_KEY,
+  GROQ_API_KEY,
   GROK_API_KEY,
   AICSO_API_KEY,
   AICSO_BASE_URL,
@@ -141,7 +142,10 @@ module.exports = {
     },
     grok: {
       baseUrl: 'https://api.x.ai',
-      apiKey: GROK_API_KEY,
+      // Backward compatible:
+      // - GROQ_API_KEY is used for Groq OpenAI-compatible routing
+      // - GROK_API_KEY kept as fallback for existing deployments
+      apiKey: GROQ_API_KEY || GROK_API_KEY || '',
       ...(AI_PROXY_URL && { proxyUrl: AI_PROXY_URL }),
     },
     anthropic: {

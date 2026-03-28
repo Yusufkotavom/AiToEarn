@@ -125,6 +125,15 @@ export class ChatService {
       route: isGroqCompatibleModel ? 'groq-openai-compatible' : 'default-openai-compatible',
     }, 'Chat completion routing')
 
+    if (isGroqCompatibleModel && !config.ai.grok.apiKey) {
+      this.logger.error({
+        model,
+        route: 'groq-openai-compatible',
+        envHint: 'Set GROQ_API_KEY (preferred) or GROK_API_KEY',
+      }, 'Missing Groq API key for Groq-compatible model routing')
+      throw new AppException(ResponseCode.AiCallFailed, { error: 'Missing Groq API key: set GROQ_API_KEY (preferred) or GROK_API_KEY' })
+    }
+
     const result = isGroqCompatibleModel
       ? await this.openaiService.createGroqChatCompletion({
           model,
