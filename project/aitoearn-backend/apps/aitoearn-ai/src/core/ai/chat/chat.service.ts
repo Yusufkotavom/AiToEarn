@@ -126,7 +126,7 @@ export class ChatService {
     }, 'Chat completion routing')
 
     // Groq routing explicitly reads GROQ_API_KEY first to avoid naming confusion with legacy GROK_API_KEY.
-    const groqApiKey = process.env.GROQ_API_KEY || config.ai.grok.apiKey
+    const groqApiKey = process.env['GROQ_API_KEY'] || config.ai.grok.apiKey
 
     if (isGroqCompatibleModel && !groqApiKey) {
       this.logger.error({
