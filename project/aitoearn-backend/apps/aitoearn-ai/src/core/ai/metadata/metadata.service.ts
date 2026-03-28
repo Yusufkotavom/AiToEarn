@@ -326,37 +326,49 @@ export class MetadataService {
 
       if (hasAuthError && sameProviderFallbackModel) {
         model = sameProviderFallbackModel
-
-        if (activeProvider === 'gemini') {
-          const geminiResult = await this.chatService.userGeminiGenerateContent({
-            userId,
-            userType: UserType.User,
-            model,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: {
+        try {
+          if (activeProvider === 'gemini') {
+            const geminiResult = await this.chatService.userGeminiGenerateContent({
+              userId,
+              userType: UserType.User,
+              model,
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              config: {
+                temperature: 0.6,
+              },
+            })
+            generatedText = this.extractGeminiText(geminiResult)
+            usage = {
+              inputTokens: geminiResult.usageMetadata?.promptTokenCount,
+              outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+            }
+          }
+          else {
+            const completion = await this.chatService.userChatCompletion({
+              userId,
+              userType: UserType.User,
+              model,
+              messages: [{ role: 'user', content: prompt }],
               temperature: 0.6,
-            },
-          })
-          generatedText = this.extractGeminiText(geminiResult)
-          usage = {
-            inputTokens: geminiResult.usageMetadata?.promptTokenCount,
-            outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+            })
+            generatedText = this.extractText(completion.content)
+            usage = {
+              inputTokens: completion.usage.input_tokens,
+              outputTokens: completion.usage.output_tokens,
+            }
           }
         }
-        else {
-          const completion = await this.chatService.userChatCompletion({
-            userId,
-            userType: UserType.User,
-            model,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.6,
-          })
-          generatedText = this.extractText(completion.content)
-          usage = {
-            inputTokens: completion.usage.input_tokens,
-            outputTokens: completion.usage.output_tokens,
-          }
+        catch (retryError) {
+          this.logger.warn({ retryError }, 'Metadata provider retry failed, using local fallback')
+          const localFallback = this.buildLocalFallbackMetadata(request.item)
+          generatedText = JSON.stringify(localFallback)
+          model = 'local-fallback'
         }
+      }
+      else if (hasAuthError) {
+        const localFallback = this.buildLocalFallbackMetadata(request.item)
+        generatedText = JSON.stringify(localFallback)
+        model = 'local-fallback'
       }
       else if (hasAuthError) {
         const localFallback = this.buildLocalFallbackMetadata(request.item)

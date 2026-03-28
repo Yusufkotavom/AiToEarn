@@ -120,6 +120,11 @@ export class ChatService {
       return new ChatMessage(message)
     })
 
+    this.logger.log({
+      model,
+      route: isGroqCompatibleModel ? 'groq-openai-compatible' : 'default-openai-compatible',
+    }, 'Chat completion routing')
+
     const result = await this.openaiService.createChatCompletion({
       model,
       messages: langchainMessages,
