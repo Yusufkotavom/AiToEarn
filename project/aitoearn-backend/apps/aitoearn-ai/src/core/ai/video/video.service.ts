@@ -27,7 +27,36 @@ import {
 import { VideoTaskInput } from './video.vo'
 import { VolcengineVideoService } from './volcengine'
 
-const pollinationsVideoFallbackModels = [
+type VideoGenerationMode = 'text2video' | 'image2video' | 'flf2video' | 'lf2video' | 'multi-image2video' | 'video2video'
+type VideoGenerationPricing = {
+  resolution?: string
+  aspectRatio?: string
+  mode?: string
+  duration?: number
+  price: number
+}
+type VideoGenerationModelConfig = {
+  name: string
+  description: string
+  summary?: string
+  logo?: string
+  tags: Array<{ 'en-US': string, 'zh-CN': string }>
+  mainTag?: string
+  channel: AiLogChannel
+  modes: VideoGenerationMode[]
+  resolutions: string[]
+  durations: number[]
+  maxInputImages: number
+  aspectRatios: string[]
+  defaults: {
+    resolution?: string
+    aspectRatio?: string
+    duration?: number
+  }
+  pricing: VideoGenerationPricing[]
+}
+
+const pollinationsVideoFallbackModels: VideoGenerationModelConfig[] = [
   {
     name: 'pollinations-veo-3.1',
     description: 'Pollinations Veo 3.1',
@@ -78,7 +107,7 @@ const pollinationsVideoFallbackModels = [
       },
     ],
   },
-] as const
+]
 
 @Injectable()
 export class VideoService {
@@ -587,7 +616,7 @@ export class VideoService {
       case AiLogChannel.Pollinations:
         if (aiLog.status === AiLogStatus.Failed) {
           return {
-            status: TaskStatus.Failed,
+            status: TaskStatus.Failure,
             videoUrl: undefined,
             error: {
               message: (aiLog.response?.['error'] as string) || 'Pollinations video generation failed',
@@ -633,9 +662,23 @@ export class VideoService {
    * 获取视频生成模型参数
    */
   async getVideoGenerationModelParams(_data: VideoGenerationModelsQueryDto) {
-    const existing = this.modelsConfigService.config.video.generation
+    const existing = this.modelsConfigService.config.video.generation as VideoGenerationModelConfig[]
     const existingNames = new Set(existing.map(model => model.name))
     const fallback = pollinationsVideoFallbackModels.filter(model => !existingNames.has(model.name))
-    return [...existing, ...fallback]
+    return [...existing, ...fallback].map(model => ({
+      ...model,
+      tags: [...(model.tags || [])],
+      modes: [...model.modes],
+      resolutions: [...model.resolutions],
+      durations: [...model.durations],
+      aspectRatios: [...model.aspectRatios],
+      pricing: model.pricing.map(pricing => ({
+        resolution: pricing.resolution,
+        aspectRatio: pricing.aspectRatio,
+        mode: pricing.mode,
+        duration: pricing.duration,
+        price: pricing.price,
+      })),
+    }))
   }
 }
