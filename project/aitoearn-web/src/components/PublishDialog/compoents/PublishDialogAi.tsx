@@ -114,6 +114,28 @@ interface Message {
   action?: AIAction
 }
 
+const pollinationsImageFallbackModels = [
+  { name: 'pollinations-flux', description: 'Pollinations Flux' },
+  { name: 'pollinations-gptimage', description: 'Pollinations GPT Image' },
+  { name: 'pollinations-imagen', description: 'Pollinations Imagen' },
+]
+
+const pollinationsVideoFallbackModels = [
+  { name: 'pollinations-veo-3.1', description: 'Pollinations Veo 3.1', resolutions: ['720x1280'], durations: [8] },
+  { name: 'pollinations-seedance', description: 'Pollinations Seedance', resolutions: ['720x1280'], durations: [8] },
+]
+
+function mergeFallbackModels<T extends { name: string }>(models: T[], fallback: T[]) {
+  const existing = new Set(models.map(model => model.name))
+  const merged = [...models]
+  for (const model of fallback) {
+    if (!existing.has(model.name)) {
+      merged.push(model)
+    }
+  }
+  return merged
+}
+
 // Message item component - use memo to avoid unnecessary re-renders
 const MessageItem = memo(
   ({
@@ -411,20 +433,21 @@ const PublishDialogAi = memo(
           try {
             const res: any = await getImageGenerationModels()
             if (res.data && Array.isArray(res.data)) {
-              setImageModels(res.data)
+              const mergedModels = mergeFallbackModels(res.data, pollinationsImageFallbackModels)
+              setImageModels(mergedModels)
 
               const savedModel = localStorage.getItem('ai_image_model')
-              const currentModelExists = res.data.find((m: any) => m.name === selectedImageModel)
+              const currentModelExists = mergedModels.find((m: any) => m.name === selectedImageModel)
               if (currentModelExists) {
                 return
               }
-              if (savedModel && res.data.find((m: any) => m.name === savedModel)) {
+              if (savedModel && mergedModels.find((m: any) => m.name === savedModel)) {
                 setSelectedImageModel(savedModel)
                 return
               }
-              if (res.data.length > 0) {
-                setSelectedImageModel(res.data[0].name)
-                localStorage.setItem('ai_image_model', res.data[0].name)
+              if (mergedModels.length > 0) {
+                setSelectedImageModel(mergedModels[0].name)
+                localStorage.setItem('ai_image_model', mergedModels[0].name)
               }
             }
           }
@@ -442,25 +465,26 @@ const PublishDialogAi = memo(
             videoModelsLoadingRef.current = true
             const res: any = await getVideoGenerationModels()
             if (res.data && Array.isArray(res.data)) {
-              setVideoModels(res.data)
+              const mergedModels = mergeFallbackModels(res.data, pollinationsVideoFallbackModels)
+              setVideoModels(mergedModels)
 
               // Read saved model from localStorage
               const savedModel = localStorage.getItem('ai_video_model')
 
               // Check if current model exists in list
-              const currentModelExists = res.data.find((m: any) => m.name === selectedVideoModel)
+              const currentModelExists = mergedModels.find((m: any) => m.name === selectedVideoModel)
 
               if (currentModelExists) {
                 // Current model is valid, no update needed
               }
-              else if (savedModel && res.data.find((m: any) => m.name === savedModel)) {
+              else if (savedModel && mergedModels.find((m: any) => m.name === savedModel)) {
                 // Use saved model if it exists in list
                 setSelectedVideoModel(savedModel)
               }
-              else if (res.data.length > 0) {
+              else if (mergedModels.length > 0) {
                 // Use first available model
-                setSelectedVideoModel(res.data[0].name)
-                localStorage.setItem('ai_video_model', res.data[0].name)
+                setSelectedVideoModel(mergedModels[0].name)
+                localStorage.setItem('ai_video_model', mergedModels[0].name)
               }
             }
           }
@@ -481,21 +505,21 @@ const PublishDialogAi = memo(
           try {
             const res: any = await getVideoTaskStatus(taskId)
             if (res.data) {
-              const { status, fail_reason, progress, data }: any = res.data
+              const { status, fail_reason, progress, data, videoUrl, error }: any = res.data
               const up = typeof status === 'string' ? status.toUpperCase() : ''
-              const normalized
-                = up === 'SUCCESS'
-                  ? 'completed'
-                  : up === 'FAILED'
-                    ? 'failed'
-                    : up === 'PROCESSING'
-                      ? 'processing'
-                      : up === 'NOT_START'
-                        || up === 'NOT_STARTED'
-                        || up === 'QUEUED'
-                        || up === 'PENDING'
-                        ? 'submitted'
-                        : (status || '').toString().toLowerCase()
+              let normalized = (status || '').toString().toLowerCase()
+              if (up === 'SUCCESS') {
+                normalized = 'completed'
+              }
+              else if (up === 'FAILED') {
+                normalized = 'failed'
+              }
+              else if (up === 'INPROGRESS' || up === 'IN_PROGRESS' || up === 'PROCESSING') {
+                normalized = 'processing'
+              }
+              else if (up === 'NOT_START' || up === 'NOT_STARTED' || up === 'QUEUED' || up === 'PENDING' || up === 'SUBMITTED') {
+                normalized = 'submitted'
+              }
               setVideoStatus(normalized)
 
               let percent = 0
@@ -508,9 +532,9 @@ const PublishDialogAi = memo(
               }
 
               if (normalized === 'completed') {
-                const videoUrl = res.data?.data?.video_url || data?.video_url
-                console.log('videoUrl', videoUrl)
-                setVideoResult(videoUrl)
+                const videoResultUrl = videoUrl || res.data?.data?.video_url || data?.video_url
+                console.log('videoUrl', videoResultUrl)
+                setVideoResult(videoResultUrl)
                 setVideoProgress(100)
 
                 // Update last message, embed video (using custom marker)
@@ -523,7 +547,7 @@ const PublishDialogAi = memo(
                     // Save original video URL to message for syncing
                     newMessages[newMessages.length - 1] = {
                       ...newMessages[newMessages.length - 1],
-                      content: `${t('aiFeatures.videoReady' as any)}\n\n__VIDEO__${videoUrl}__VIDEO__`,
+                      content: `${t('aiFeatures.videoReady' as any)}\n\n__VIDEO__${videoResultUrl}__VIDEO__`,
                     }
                   }
                   return newMessages
@@ -535,7 +559,7 @@ const PublishDialogAi = memo(
               }
               if (normalized === 'failed') {
                 setVideoProgress(0)
-                toast.error(fail_reason || t('aiFeatures.videoFailed' as any))
+                toast.error(error?.message || fail_reason || t('aiFeatures.videoFailed' as any))
                 setMessages(prev => prev.slice(0, -1))
                 setIsProcessing(false)
                 return true
@@ -636,11 +660,12 @@ const PublishDialogAi = memo(
 
             const res: any = await generateVideo(data)
 
-            if (res?.data?.task_id) {
-              setVideoTaskId(res.data.task_id)
-              setVideoStatus(res.data.status)
+            const taskId = res?.data?.id || res?.data?.task_id
+            if (taskId) {
+              setVideoTaskId(taskId)
+              setVideoStatus((res.data.status || 'submitted').toString().toLowerCase())
               toast.success(t('aiFeatures.videoTaskSubmitted' as any))
-              pollVideoTaskStatus(res.data.task_id)
+              pollVideoTaskStatus(taskId)
             }
             else {
               throw new Error(t('aiFeatures.videoGenerationFailed' as any))

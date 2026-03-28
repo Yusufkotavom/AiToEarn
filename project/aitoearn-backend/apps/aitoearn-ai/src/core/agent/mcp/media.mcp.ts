@@ -534,7 +534,12 @@ Returns a direct media URL from Pollinations.`,
           url.searchParams.set('referrer', process.env['POLLINATIONS_APP_URL'])
         }
 
-        return successResult(`Pollinations video URL (${model}): ${url.toString()}`)
+        return {
+          content: [
+            { type: 'resource_link', uri: url.toString(), name: `Pollinations video (${model})` } as const,
+            { type: 'text', text: `Pollinations video URL: ${url.toString()}` },
+          ],
+        }
       },
     )
   }

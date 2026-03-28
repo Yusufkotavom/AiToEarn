@@ -34,6 +34,45 @@ const pollinationsImageModelMapping: Record<string, string> = {
   'pollinations-imagen': 'imagen',
 }
 
+const pollinationsImageFallbackConfigs = [
+  {
+    name: 'pollinations-flux',
+    description: 'Pollinations Flux',
+    summary: 'Pollinations image generation via Flux',
+    logo: undefined,
+    tags: [],
+    mainTag: 'pollinations',
+    sizes: ['1024x1024', '720x1280', '1280x720'],
+    qualities: ['standard'],
+    styles: ['natural'],
+    pricing: '0',
+  },
+  {
+    name: 'pollinations-gptimage',
+    description: 'Pollinations GPT Image',
+    summary: 'Pollinations image generation via GPT Image',
+    logo: undefined,
+    tags: [],
+    mainTag: 'pollinations',
+    sizes: ['1024x1024', '720x1280', '1280x720'],
+    qualities: ['standard'],
+    styles: ['natural'],
+    pricing: '0',
+  },
+  {
+    name: 'pollinations-imagen',
+    description: 'Pollinations Imagen',
+    summary: 'Pollinations image generation via Imagen',
+    logo: undefined,
+    tags: [],
+    mainTag: 'pollinations',
+    sizes: ['1024x1024', '720x1280', '1280x720'],
+    qualities: ['standard'],
+    styles: ['natural'],
+    pricing: '0',
+  },
+]
+
 @Injectable()
 export class ImageService {
   private readonly logger = new Logger(ImageService.name)
@@ -496,7 +535,10 @@ export class ImageService {
    * @param data 查询参数，包含可选的 userId 和 userType，可用于后续个性化模型推荐
    */
   async generationModelConfig(_data: ImageGenerationModelsQueryDto) {
-    return this.modelsConfigService.config.image.generation
+    const existing = this.modelsConfigService.config.image.generation
+    const existingNames = new Set(existing.map(model => model.name))
+    const fallback = pollinationsImageFallbackConfigs.filter(model => !existingNames.has(model.name))
+    return [...existing, ...fallback]
   }
 
   /**
