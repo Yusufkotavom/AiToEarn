@@ -332,6 +332,7 @@ export function useCreateMaterialForm({
 
       const response = await apiGenerateMetadata({
         provider: settings.provider,
+        model: settings.model,
         promptTemplate: settings.promptTemplate,
         strategy: settings.strategy,
         item: {

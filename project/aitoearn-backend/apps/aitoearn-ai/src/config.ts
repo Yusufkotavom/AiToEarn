@@ -71,6 +71,15 @@ const chatFlatPricingSchema = z.object({
 }).strict()
 
 export const chatPricingSchema = z.union([chatFlatPricingSchema, chatTieredPricingSchema])
+const aiLogChannelValues = Object.values(AiLogChannel) as [AiLogChannel, ...AiLogChannel[]]
+const aiLogChannelSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') {
+    return value
+  }
+  const trimmed = value.trim()
+  const matched = aiLogChannelValues.find(item => item.toLowerCase() === trimmed.toLowerCase())
+  return matched ?? trimmed
+}, z.enum(aiLogChannelValues)).catch(AiLogChannel.NewApi)
 
 export const aiModelsConfigSchema = z.object({
   chat: z.array(z.object({
@@ -117,7 +126,7 @@ export const aiModelsConfigSchema = z.object({
       logo: z.string().optional(),
       tags: z.array(z.object({ 'en-US': z.string(), 'zh-CN': z.string() })).default([]),
       mainTag: z.string().optional(),
-      channel: z.enum(AiLogChannel),
+      channel: aiLogChannelSchema,
       modes: z.array(z.enum(['text2video', 'image2video', 'flf2video', 'lf2video', 'multi-image2video', 'video2video'])),
       resolutions: z.array(z.string()),
       durations: z.array(z.number()),

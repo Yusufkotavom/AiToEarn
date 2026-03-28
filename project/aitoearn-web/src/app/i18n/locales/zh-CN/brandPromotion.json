@@ -290,6 +290,9 @@
     "batchGenerateMetadata": "批量生成元数据",
     "batchGenerateMetadataStarted": "已为 {{count}} 条草稿启动元数据生成",
     "batchGenerateMetadataFailed": "启动元数据生成失败",
+    "batchGenerateProgress": "批量进度：成功 {{success}} / 失败 {{failed}} / 总计 {{total}}",
+    "batchGenerateRetryFailed": "重试失败项",
+    "batchGenerateRetryStarted": "已启动 {{count}} 条失败项重试",
     "cancel": "取消",
     "generationDetail": "生成记录"
   },
@@ -315,6 +318,8 @@
     "metadataAiSettings": "元数据 AI 设置",
     "metadataAiSettingsTitle": "AI 元数据生成设置",
     "metadataProviderLabel": "提供方",
+    "metadataModelLabel": "模型",
+    "metadataModelPlaceholder": "输入模型名称（默认：Groq）",
     "metadataApplyStrategyLabel": "应用策略",
     "metadataApplyReplaceEmpty": "仅填充空字段",
     "metadataApplyReplaceAll": "覆盖全部字段",

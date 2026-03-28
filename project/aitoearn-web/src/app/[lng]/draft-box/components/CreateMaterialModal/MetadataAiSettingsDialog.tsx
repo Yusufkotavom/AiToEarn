@@ -11,15 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { DEFAULT_METADATA_PROMPT_TEMPLATE } from './metadataAiSettingsStore'
+import { DEFAULT_METADATA_PROMPT_TEMPLATE, METADATA_PROVIDER_MODELS } from './metadataAiSettingsStore'
 
 interface MetadataAiSettingsDialogProps {
   open: boolean
   provider: MetadataAiProvider
+  model?: string
   strategy: MetadataApplyStrategy
   promptTemplate: string
   onOpenChange: (open: boolean) => void
   onProviderChange: (provider: MetadataAiProvider) => void
+  onModelChange: (model: string) => void
   onStrategyChange: (strategy: MetadataApplyStrategy) => void
   onPromptTemplateChange: (value: string) => void
   onSave: () => void
@@ -31,15 +33,18 @@ const strategyOptions: MetadataApplyStrategy[] = ['replace_empty', 'replace_all'
 const MetadataAiSettingsDialog = memo(({
   open,
   provider,
+  model,
   strategy,
   promptTemplate,
   onOpenChange,
   onProviderChange,
+  onModelChange,
   onStrategyChange,
   onPromptTemplateChange,
   onSave,
 }: MetadataAiSettingsDialogProps) => {
   const { t } = useTranslation('brandPromotion')
+  const modelOptions = provider === 'auto' ? [] : METADATA_PROVIDER_MODELS[provider]
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,6 +74,31 @@ const MetadataAiSettingsDialog = memo(({
                 </Button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{t('createMaterial.metadataModelLabel')}</p>
+            <input
+              value={model || ''}
+              onChange={e => onModelChange(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder={t('createMaterial.metadataModelPlaceholder')}
+            />
+            {modelOptions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {modelOptions.map(option => (
+                  <Button
+                    key={option}
+                    type="button"
+                    variant={model === option ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onModelChange(option)}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

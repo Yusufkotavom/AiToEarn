@@ -10,6 +10,7 @@ import { Bot, Settings2, Sparkles, TriangleAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { apiGetMetadataSettings, apiUpdateMetadataSettings } from '@/api/metadataGeneration'
 import { PlatType } from '@/app/config/platConfig'
 import PubParmasTextarea from '@/components/PublishDialog/compoents/PubParmasTextarea'
 import { Button } from '@/components/ui/button'
@@ -59,6 +60,7 @@ const CreateMaterialModalContent = memo(
     const router = useRouter()
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [draftPromptTemplate, setDraftPromptTemplate] = useState('')
+    const [draftModel, setDraftModel] = useState('')
 
     const {
       params,
@@ -83,19 +85,37 @@ const CreateMaterialModalContent = memo(
         <MetadataAiSettingsDialog
           open={settingsOpen}
           provider={settings.provider}
+          model={draftModel || settings.model}
           strategy={settings.strategy}
           promptTemplate={draftPromptTemplate || settings.promptTemplate}
           onOpenChange={(open) => {
             setSettingsOpen(open)
             if (open) {
+              void (async () => {
+                const remote = await apiGetMetadataSettings()
+                if (remote?.code === 0 && remote.data) {
+                  updateSettings(remote.data)
+                }
+              })()
               setDraftPromptTemplate(settings.promptTemplate)
+              setDraftModel(settings.model || '')
             }
           }}
           onProviderChange={provider => updateSettings({ provider })}
+          onModelChange={setDraftModel}
           onStrategyChange={strategy => updateSettings({ strategy })}
           onPromptTemplateChange={setDraftPromptTemplate}
           onSave={() => {
-            updateSettings({ promptTemplate: draftPromptTemplate || settings.promptTemplate })
+            const nextSettings = {
+              promptTemplate: draftPromptTemplate || settings.promptTemplate,
+              model: draftModel || settings.model,
+            }
+            updateSettings(nextSettings)
+            void apiUpdateMetadataSettings({
+              provider: settings.provider,
+              strategy: settings.strategy,
+              ...nextSettings,
+            })
             setSettingsOpen(false)
           }}
         />

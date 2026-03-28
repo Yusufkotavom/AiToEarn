@@ -4,6 +4,7 @@ export type MetadataAiProvider = 'auto' | 'groq' | 'gemini'
 
 export interface GenerateMetadataRequest {
   provider: MetadataAiProvider
+  model?: string
   promptTemplate: string
   strategy: 'replace_empty' | 'replace_all'
   item: {
@@ -34,6 +35,7 @@ export function apiGenerateMetadata(data: GenerateMetadataRequest) {
 
 export interface CreateMetadataBatchRequest {
   provider: MetadataAiProvider
+  model?: string
   promptTemplate: string
   strategy: 'replace_empty' | 'replace_all'
   items: Array<{
@@ -52,4 +54,39 @@ export interface CreateMetadataBatchResponse {
 
 export function apiCreateMetadataBatch(data: CreateMetadataBatchRequest) {
   return http.post<CreateMetadataBatchResponse>('ai/metadata/generate/batch', data, true)
+}
+
+export interface MetadataBatchItemStatus {
+  index: number
+  status: 'queued' | 'running' | 'success' | 'failed'
+  result?: GenerateMetadataResponse
+  error?: string
+}
+
+export interface MetadataBatchStatusResponse {
+  jobId: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  total: number
+  successCount: number
+  failedCount: number
+  items: MetadataBatchItemStatus[]
+}
+
+export function apiGetMetadataBatchJob(jobId: string) {
+  return http.get<MetadataBatchStatusResponse>(`ai/metadata/generate/batch/${jobId}`, {}, true)
+}
+
+export interface MetadataSettings {
+  provider: MetadataAiProvider
+  model?: string
+  promptTemplate: string
+  strategy: 'replace_empty' | 'replace_all'
+}
+
+export function apiGetMetadataSettings() {
+  return http.get<MetadataSettings>('ai/metadata/settings', {}, true)
+}
+
+export function apiUpdateMetadataSettings(data: MetadataSettings) {
+  return http.post<MetadataSettings>('ai/metadata/settings', data, true)
 }
