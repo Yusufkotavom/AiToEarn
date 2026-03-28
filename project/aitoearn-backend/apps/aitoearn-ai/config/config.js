@@ -255,6 +255,48 @@ module.exports = {
           },
         },
         {
+          name: 'llama-3.3-70b-versatile',
+          description: 'Groq Llama 3.3 70B Versatile',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
+          name: 'llama-3.1-70b-versatile',
+          description: 'Groq Llama 3.1 70B Versatile',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
+          name: 'mixtral-8x7b-32768',
+          description: 'Groq Mixtral 8x7B',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
           name: 'gemini-3.1-flash-image-preview',
           description: 'Nano Banana 2',
           inputModalities: ['text', 'image'],
