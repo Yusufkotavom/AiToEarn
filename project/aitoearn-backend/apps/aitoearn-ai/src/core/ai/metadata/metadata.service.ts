@@ -239,21 +239,6 @@ export class MetadataService {
     }
   }
 
-  private buildLocalFallbackMetadata(item: GenerateMetadataDto['item']): Pick<GenerateMetadataVo, 'title' | 'description' | 'tags'> {
-    const title = item.title?.trim() || 'Untitled content'
-    const description = item.description?.trim() || `Content for ${item.platforms.join(', ') || 'social media'}`
-    const normalizedTags = item.tags
-      .map(tag => tag.replace(/^#/, '').trim().toLowerCase())
-      .filter(Boolean)
-      .slice(0, 10)
-
-    return {
-      title,
-      description,
-      tags: normalizedTags.length > 0 ? normalizedTags : ['content', 'social', 'post'],
-    }
-  }
-
   async generateMetadata(userId: string, request: GenerateMetadataDto): Promise<GenerateMetadataVo> {
     let model = this.pickModel(request.provider, request.model)
     let activeProvider: 'groq' | 'gemini' = request.provider === 'auto'
@@ -355,11 +340,6 @@ export class MetadataService {
             outputTokens: completion.usage.output_tokens,
           }
         }
-      }
-      else if (hasAuthError) {
-        const localFallback = this.buildLocalFallbackMetadata(request.item)
-        generatedText = JSON.stringify(localFallback)
-        model = 'local-fallback'
       }
       else {
         throw error
