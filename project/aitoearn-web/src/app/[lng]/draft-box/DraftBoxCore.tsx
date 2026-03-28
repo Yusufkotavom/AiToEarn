@@ -18,7 +18,11 @@ import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
 import DraftContentModule from './components/DraftContentModule'
 
-export default function DraftBoxCore() {
+interface DraftBoxCoreProps {
+  showGenerateBar?: boolean
+}
+
+export default function DraftBoxCore({ showGenerateBar = true }: DraftBoxCoreProps) {
   const { t } = useTransClient('brandPromotion')
   const searchParams = useSearchParams()
   const urlPlanId = searchParams.get('planId')
@@ -130,7 +134,7 @@ export default function DraftBoxCore() {
       <div className="flex-1 min-h-0">
         <div className="flex flex-col h-full bg-background">
           <div className="flex-1 overflow-auto">
-            <DraftContentModule />
+            <DraftContentModule showGenerateBar={showGenerateBar} />
           </div>
         </div>
       </div>

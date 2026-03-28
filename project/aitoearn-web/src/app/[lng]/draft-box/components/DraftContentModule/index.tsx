@@ -26,7 +26,11 @@ import { DraftDetailDialog } from '../DraftDetailDialog'
 import { DraftListSection } from '../DraftListSection'
 import { GenerationDetailDialog } from '../GenerationDetailDialog'
 
-function DraftContentModule() {
+interface DraftContentModuleProps {
+  showGenerateBar?: boolean
+}
+
+function DraftContentModule({ showGenerateBar = true }: DraftContentModuleProps) {
   const {
     currentPlan,
     createMaterialModalOpen,
@@ -204,7 +208,9 @@ function DraftContentModule() {
     <>
       <div className="space-y-6 p-4 md:p-6">
         {/* AI 批量生成输入栏 */}
-        <AiBatchGenerateBar groupId={selectedPlanId || undefined} />
+        {showGenerateBar && (
+          <AiBatchGenerateBar groupId={selectedPlanId || undefined} />
+        )}
         {/* 内容 Tabs：草稿箱 / 视频 / 图片 */}
         <DraftListSection materialGroupId={selectedPlanId || undefined} />
       </div>

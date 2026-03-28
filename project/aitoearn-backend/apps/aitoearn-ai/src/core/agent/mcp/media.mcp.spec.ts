@@ -2,19 +2,17 @@ import { Logger } from '@nestjs/common'
 import { UserType } from '@yikart/common'
 import { AiLogStatus } from '@yikart/mongodb'
 import { vi } from 'vitest'
-import { ChatService } from '../../ai/chat'
 import { ImageService } from '../../ai/image'
-import { GeminiVideoService, OpenAIVideoService, Sora2VideoService } from '../../ai/video'
+import { GeminiVideoService, GrokVideoService, OpenAIVideoService } from '../../ai/video'
 import { MediaMcp, MediaToolName } from './media.mcp'
 
 describe('mediaMcp', () => {
   let mediaMcp: MediaMcp
   let mockLogger: Logger
-  let mockChatService: vi.Mocked<ChatService>
   let mockOpenaiVideoService: vi.Mocked<OpenAIVideoService>
   let mockImageService: vi.Mocked<ImageService>
-  let mockSora2VideoService: vi.Mocked<Sora2VideoService>
   let mockGeminiVideoService: vi.Mocked<GeminiVideoService>
+  let mockGrokVideoService: vi.Mocked<GrokVideoService>
 
   const userId = 'test-user-id'
   const userType = UserType.User
@@ -25,8 +23,6 @@ describe('mediaMcp', () => {
       error: vi.fn(),
       fatal: vi.fn(),
     } as unknown as Logger
-
-    mockChatService = {} as vi.Mocked<ChatService>
 
     mockOpenaiVideoService = {
       createVideo: vi.fn(),
@@ -39,19 +35,21 @@ describe('mediaMcp', () => {
       userGeminiGeneration: vi.fn(),
     } as unknown as vi.Mocked<ImageService>
 
-    mockSora2VideoService = {} as vi.Mocked<Sora2VideoService>
-
     mockGeminiVideoService = {
       createVideo: vi.fn(),
       getVideo: vi.fn(),
     } as unknown as vi.Mocked<GeminiVideoService>
 
+    mockGrokVideoService = {
+      createVideo: vi.fn(),
+      getTask: vi.fn(),
+    } as unknown as vi.Mocked<GrokVideoService>
+
     mediaMcp = new MediaMcp(
-      mockChatService,
       mockOpenaiVideoService,
       mockImageService,
-      mockSora2VideoService,
       mockGeminiVideoService,
+      mockGrokVideoService,
     )
     // Override the logger for testing
     Object.defineProperty(mediaMcp, 'logger', { value: mockLogger })
@@ -642,8 +640,27 @@ describe('mediaMcp', () => {
       const toolNames = server.tools?.map(t => t.name)
 
       expect(toolNames).toContain(MediaToolName.GenerateImage)
-      expect(toolNames).toContain(MediaToolName.GenerateVideoWithVeo)
-      expect(toolNames).toContain(MediaToolName.GetVeoVideoStatus)
+      expect(toolNames).toContain(MediaToolName.GenerateVideoWithGrok)
+      expect(toolNames).toContain(MediaToolName.GetGrokVideoStatus)
+      expect(toolNames).toContain(MediaToolName.GenerateImageWithPollinations)
+      expect(toolNames).toContain(MediaToolName.GenerateVideoWithPollinations)
+    })
+  })
+
+  describe('createGenerateVideoWithPollinationsTool', () => {
+    it('should return video URL as resource link', async () => {
+      const tool = mediaMcp.createGenerateVideoWithPollinationsTool()
+      const result = await tool.handler({
+        prompt: 'A scenic sunset over ocean',
+        model: 'veo-3.1',
+        width: 720,
+        height: 1280,
+      } as never, {})
+
+      const resourceLink = result.content.find(c => c.type === 'resource_link')
+      expect(resourceLink).toBeDefined()
+      expect(resourceLink?.name).toContain('Pollinations video')
+      expect((resourceLink as { uri: string }).uri).toContain('video.pollinations.ai')
     })
   })
 })

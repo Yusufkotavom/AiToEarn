@@ -27,9 +27,93 @@ import {
 import { VideoTaskInput } from './video.vo'
 import { VolcengineVideoService } from './volcengine'
 
+type VideoGenerationMode = 'text2video' | 'image2video' | 'flf2video' | 'lf2video' | 'multi-image2video' | 'video2video'
+type VideoGenerationPricing = {
+  resolution?: string
+  aspectRatio?: string
+  mode?: string
+  duration?: number
+  price: number
+}
+type VideoGenerationModelConfig = {
+  name: string
+  description: string
+  summary?: string
+  logo?: string
+  tags: Array<{ 'en-US': string, 'zh-CN': string }>
+  mainTag?: string
+  channel: AiLogChannel
+  modes: VideoGenerationMode[]
+  resolutions: string[]
+  durations: number[]
+  maxInputImages: number
+  aspectRatios: string[]
+  defaults: {
+    resolution?: string
+    aspectRatio?: string
+    duration?: number
+  }
+  pricing: VideoGenerationPricing[]
+}
+
+const pollinationsVideoFallbackModels: VideoGenerationModelConfig[] = [
+  {
+    name: 'pollinations-veo-3.1',
+    description: 'Pollinations Veo 3.1',
+    summary: 'Pollinations video generation using Veo 3.1',
+    logo: undefined,
+    tags: [],
+    mainTag: 'pollinations',
+    channel: AiLogChannel.Pollinations,
+    modes: ['text2video', 'image2video'],
+    resolutions: ['720x1280', '1280x720'],
+    durations: [8],
+    maxInputImages: 1,
+    aspectRatios: ['9:16', '16:9'],
+    defaults: {
+      resolution: '720x1280',
+      aspectRatio: '9:16',
+      duration: 8,
+    },
+    pricing: [
+      {
+        duration: 8,
+        price: 0,
+      },
+    ],
+  },
+  {
+    name: 'pollinations-seedance',
+    description: 'Pollinations Seedance',
+    summary: 'Pollinations video generation using Seedance',
+    logo: undefined,
+    tags: [],
+    mainTag: 'pollinations',
+    channel: AiLogChannel.Pollinations,
+    modes: ['text2video', 'image2video'],
+    resolutions: ['720x1280', '1280x720'],
+    durations: [8],
+    maxInputImages: 1,
+    aspectRatios: ['9:16', '16:9'],
+    defaults: {
+      resolution: '720x1280',
+      aspectRatio: '9:16',
+      duration: 8,
+    },
+    pricing: [
+      {
+        duration: 8,
+        price: 0,
+      },
+    ],
+  },
+]
+
 @Injectable()
 export class VideoService {
   private readonly logger = new Logger(VideoService.name)
+  private readonly pollinationsStatusProbeTimeoutMs = 5000
+  private readonly pollinationsTaskMaxWaitMs = 15 * 60 * 1000
 
   constructor(
     private readonly userRepo: UserRepository,
@@ -187,12 +271,82 @@ export class VideoService {
       points,
       request: { model, prompt, image: imageUrl, size: request.size, duration },
       response: { videoUrl: url.toString() },
-      status: AiLogStatus.Success,
+      status: AiLogStatus.Generating,
       startedAt,
-      duration: 1,
     })
 
     return createTaskResponse(aiLog.id, points)
+  }
+
+  private async refreshPollinationsTaskStatus(aiLog: AiLog): Promise<AiLog> {
+    if (aiLog.channel !== AiLogChannel.Pollinations || aiLog.status !== AiLogStatus.Generating) {
+      return aiLog
+    }
+
+    const videoUrl = aiLog.response?.['videoUrl']
+    if (typeof videoUrl !== 'string' || videoUrl.length === 0) {
+      return aiLog
+    }
+
+    const trySuccess = async () => {
+      const response = await fetch(videoUrl, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(this.pollinationsStatusProbeTimeoutMs),
+      })
+
+      if (response.ok) {
+        return true
+      }
+
+      if (response.status === 405) {
+        const fallback = await fetch(videoUrl, {
+          method: 'GET',
+          headers: {
+            Range: 'bytes=0-0',
+          },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(this.pollinationsStatusProbeTimeoutMs),
+        })
+
+        if (fallback.ok || fallback.status === 206) {
+          return true
+        }
+      }
+
+      return false
+    }
+
+    try {
+      const isReady = await trySuccess()
+      if (isReady) {
+        const duration = Math.max(1, Date.now() - aiLog.startedAt.getTime())
+        const updated = await this.aiLogRepo.updateById(aiLog.id, {
+          status: AiLogStatus.Success,
+          duration,
+        })
+        return updated || aiLog
+      }
+    }
+    catch (error) {
+      this.logger.debug({ taskId: aiLog.id, error }, 'Pollinations status probe failed, keep task in generating state')
+    }
+
+    const waitMs = Date.now() - aiLog.startedAt.getTime()
+    if (waitMs >= this.pollinationsTaskMaxWaitMs) {
+      const duration = Math.max(1, waitMs)
+      const updated = await this.aiLogRepo.updateById(aiLog.id, {
+        status: AiLogStatus.Failed,
+        duration,
+        response: {
+          ...(aiLog.response || {}),
+          error: `Pollinations video generation timeout after ${Math.round(waitMs / 1000)}s`,
+        },
+      })
+      return updated || aiLog
+    }
+
+    return aiLog
   }
 
   /**
@@ -460,6 +614,15 @@ export class VideoService {
       case AiLogChannel.Gemini:
         return this.geminiVideoService.getTaskResult(aiLog.response as unknown as GeminiVeoVideoCallbackDto)
       case AiLogChannel.Pollinations:
+        if (aiLog.status === AiLogStatus.Failed) {
+          return {
+            status: TaskStatus.Failure,
+            videoUrl: undefined,
+            error: {
+              message: (aiLog.response?.['error'] as string) || 'Pollinations video generation failed',
+            },
+          }
+        }
         return {
           status: TaskStatus.Success,
           videoUrl: aiLog.response?.['videoUrl'] as string | undefined,
@@ -481,7 +644,9 @@ export class VideoService {
     if (aiLog == null || aiLog.type !== AiLogType.Video) {
       throw new AppException(ResponseCode.InvalidAiTaskId)
     }
-    return this.transformToCommonResponse(aiLog)
+
+    const refreshedLog = await this.refreshPollinationsTaskStatus(aiLog)
+    return this.transformToCommonResponse(refreshedLog)
   }
 
   async listVideoTasks(request: UserListVideoTasksQueryDto) {
@@ -497,6 +662,23 @@ export class VideoService {
    * 获取视频生成模型参数
    */
   async getVideoGenerationModelParams(_data: VideoGenerationModelsQueryDto) {
-    return this.modelsConfigService.config.video.generation
+    const existing = this.modelsConfigService.config.video.generation as VideoGenerationModelConfig[]
+    const existingNames = new Set(existing.map(model => model.name))
+    const fallback = pollinationsVideoFallbackModels.filter(model => !existingNames.has(model.name))
+    return [...existing, ...fallback].map(model => ({
+      ...model,
+      tags: [...(model.tags || [])],
+      modes: [...model.modes],
+      resolutions: [...model.resolutions],
+      durations: [...model.durations],
+      aspectRatios: [...model.aspectRatios],
+      pricing: model.pricing.map(pricing => ({
+        resolution: pricing.resolution,
+        aspectRatio: pricing.aspectRatio,
+        mode: pricing.mode,
+        duration: pricing.duration,
+        price: pricing.price,
+      })),
+    }))
   }
 }
