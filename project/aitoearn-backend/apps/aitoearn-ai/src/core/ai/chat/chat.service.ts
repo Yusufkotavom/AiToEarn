@@ -111,6 +111,10 @@ export class ChatService {
 
   async chatCompletion(request: ChatCompletionDto, userId: string) {
     const { messages, model, ...params } = request
+    const normalizedModel = model.toLowerCase()
+    const isGroqCompatibleModel = normalizedModel.includes('llama')
+      || normalizedModel.includes('mixtral')
+      || normalizedModel.includes('groq')
 
     const langchainMessages: BaseMessage[] = messages.map((message) => {
       return new ChatMessage(message)
@@ -120,6 +124,12 @@ export class ChatService {
       model,
       messages: langchainMessages,
       ...params,
+      ...(isGroqCompatibleModel && {
+        apiKey: config.ai.grok.apiKey,
+        configuration: {
+          baseURL: 'https://api.groq.com/openai/v1',
+        },
+      }),
       modalities: params.modalities as OpenAIClient.Chat.ChatCompletionModality[],
     })
 

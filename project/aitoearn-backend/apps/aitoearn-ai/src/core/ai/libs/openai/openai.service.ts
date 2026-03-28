@@ -5,6 +5,12 @@ import OpenAI from 'openai'
 import { OpenaiConfig } from './openai.config'
 import { SoraCharacterResponse, SoraCreateCharacterRequest } from './openai.interface'
 
+type OpenAIChatOptions = Partial<OpenAIChatInput> & {
+  configuration?: {
+    baseURL?: string
+  }
+}
+
 @Injectable()
 export class OpenaiService {
   private readonly logger = new Logger(OpenaiService.name)
@@ -26,20 +32,20 @@ export class OpenaiService {
     })
   }
 
-  private _createChatModel(options: Partial<OpenAIChatInput>): ChatOpenAI {
+  private _createChatModel(options: OpenAIChatOptions): ChatOpenAI {
     return new ChatOpenAI({
       ...options,
       maxRetries: 1,
       timeout: options.timeout ?? this.config.timeout,
       apiKey: options.apiKey ?? this.config.apiKey,
       configuration: {
-        baseURL: this.config.baseUrl,
+        baseURL: options.configuration?.baseURL ?? this.config.baseUrl,
       },
       streaming: true,
     })
   }
 
-  async createChatCompletionStream(options: Partial<OpenAIChatInput> & {
+  async createChatCompletionStream(options: OpenAIChatOptions & {
     model: string
     messages: BaseMessage[]
   }) {
@@ -55,7 +61,7 @@ export class OpenaiService {
     return this.openAI.chat.completions.create(options)
   }
 
-  async createChatCompletion(options: Partial<OpenAIChatInput> & {
+  async createChatCompletion(options: OpenAIChatOptions & {
     model: string
     messages: BaseMessage[]
   }): Promise<AIMessageChunk> {
