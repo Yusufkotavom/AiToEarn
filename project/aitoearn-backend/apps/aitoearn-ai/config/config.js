@@ -134,8 +134,10 @@ module.exports = {
       urlAuthPrimaryKey: 'd8eea018341d4e9687ead69bea628271',
     },
     openai: {
-      baseUrl: AI_PROXY_URL ? `${AI_PROXY_URL}/${OPENAI_BASE_URL}` : OPENAI_BASE_URL,
-      apiKey: OPENAI_API_KEY,
+      baseUrl: AI_PROXY_URL
+        ? `${AI_PROXY_URL}/${OPENAI_BASE_URL || 'https://api.groq.com/openai/v1'}`
+        : (OPENAI_BASE_URL || 'https://api.groq.com/openai/v1'),
+      apiKey: OPENAI_API_KEY || GROK_API_KEY,
     },
     grok: {
       baseUrl: 'https://api.x.ai',
