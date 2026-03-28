@@ -61,7 +61,10 @@ export class MetadataService {
         }
         return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
       })
-      return matched ?? chatModels[0]
+      if (!matched) {
+        return chatModels[0]
+      }
+      return matched
     }
 
     if (requestedModel?.trim()) {
@@ -74,14 +77,20 @@ export class MetadataService {
       const modelName = selectedModel.toLowerCase()
       if (provider === 'gemini' && !modelName.includes('gemini')) {
         const fallbackGemini = chatModels.find(model => model.toLowerCase().includes('gemini'))
-        return fallbackGemini ?? selectedModel
+        if (!fallbackGemini) {
+          throw new AppException(ResponseCode.InvalidModel, { provider, requestedModel: normalizedRequestedModel })
+        }
+        return fallbackGemini
       }
       if (provider === 'groq' && modelName.includes('gemini')) {
         const fallbackGroq = chatModels.find((model) => {
           const normalized = model.toLowerCase()
           return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
         })
-        return fallbackGroq ?? selectedModel
+        if (!fallbackGroq) {
+          throw new AppException(ResponseCode.InvalidModel, { provider, requestedModel: normalizedRequestedModel })
+        }
+        return fallbackGroq
       }
 
       return selectedModel
@@ -90,10 +99,21 @@ export class MetadataService {
     return pickByProvider()
   }
 
-  private pickGeminiModel(): string | undefined {
-    return this.modelsConfigService.config.chat
-      .map(item => item.name)
-      .find(model => model.toLowerCase().includes('gemini'))
+  private pickAlternativeModelByProvider(provider: 'groq' | 'gemini', excludeModel: string): string | undefined {
+    const excluded = excludeModel.toLowerCase()
+    const models = this.modelsConfigService.config.chat.map(item => item.name)
+    return models.find((model) => {
+      const normalized = model.toLowerCase()
+      if (normalized === excluded) {
+        return false
+      }
+
+      if (provider === 'gemini') {
+        return normalized.includes('gemini')
+      }
+
+      return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+    })
   }
 
   private extractText(content: AIMessageChunk['content']): string {
@@ -220,6 +240,9 @@ export class MetadataService {
 
   async generateMetadata(userId: string, request: GenerateMetadataDto): Promise<GenerateMetadataVo> {
     let model = this.pickModel(request.provider, request.model)
+    let activeProvider: 'groq' | 'gemini' = request.provider === 'auto'
+      ? this.inferProviderByModel(model)
+      : request.provider
     const renderedPromptTemplate = this.renderPromptTemplate(request.promptTemplate, request)
 
     const prompt = request.item.prompt?.trim().length
@@ -244,7 +267,7 @@ export class MetadataService {
     let usage: { inputTokens?: number, outputTokens?: number } = {}
 
     try {
-      if (model.toLowerCase().includes('gemini')) {
+      if (activeProvider === 'gemini') {
         const geminiResult = await this.chatService.userGeminiGenerateContent({
           userId,
           userType: UserType.User,
@@ -277,24 +300,44 @@ export class MetadataService {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : ''
-      const hasAuthError = message.includes('Incorrect API key provided') || message.includes('invalid_api_key')
-      const geminiFallbackModel = this.pickGeminiModel()
+      const hasAuthError = message.includes('Incorrect API key provided')
+        || message.includes('invalid_api_key')
+        || message.includes('UNAUTHENTICATED')
+        || message.includes('Unauthorized')
+      const sameProviderFallbackModel = this.pickAlternativeModelByProvider(activeProvider, model)
 
-      if (hasAuthError && geminiFallbackModel && geminiFallbackModel !== model) {
-        model = geminiFallbackModel
-        const geminiResult = await this.chatService.userGeminiGenerateContent({
-          userId,
-          userType: UserType.User,
-          model,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
+      if (hasAuthError && sameProviderFallbackModel) {
+        model = sameProviderFallbackModel
+
+        if (activeProvider === 'gemini') {
+          const geminiResult = await this.chatService.userGeminiGenerateContent({
+            userId,
+            userType: UserType.User,
+            model,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              temperature: 0.6,
+            },
+          })
+          generatedText = this.extractGeminiText(geminiResult)
+          usage = {
+            inputTokens: geminiResult.usageMetadata?.promptTokenCount,
+            outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+          }
+        }
+        else {
+          const completion = await this.chatService.userChatCompletion({
+            userId,
+            userType: UserType.User,
+            model,
+            messages: [{ role: 'user', content: prompt }],
             temperature: 0.6,
-          },
-        })
-        generatedText = this.extractGeminiText(geminiResult)
-        usage = {
-          inputTokens: geminiResult.usageMetadata?.promptTokenCount,
-          outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+          })
+          generatedText = this.extractText(completion.content)
+          usage = {
+            inputTokens: completion.usage.input_tokens,
+            outputTokens: completion.usage.output_tokens,
+          }
         }
       }
       else {
@@ -304,11 +347,11 @@ export class MetadataService {
 
     const parsed = this.parseGeneratedMetadata(generatedText)
     const finalMetadata = this.applyStrategy(request.strategy, request.item, parsed)
-    const resolvedProvider = request.provider === 'auto' ? this.inferProviderByModel(model) : request.provider
+    activeProvider = request.provider === 'auto' ? this.inferProviderByModel(model) : request.provider
 
     return {
       ...finalMetadata,
-      provider: resolvedProvider,
+      provider: activeProvider,
       model,
       usage,
     }
