@@ -35,6 +35,7 @@ export function apiGenerateMetadata(data: GenerateMetadataRequest) {
 
 export interface CreateMetadataBatchRequest {
   provider: MetadataAiProvider
+  model?: string
   promptTemplate: string
   strategy: 'replace_empty' | 'replace_all'
   items: Array<{
