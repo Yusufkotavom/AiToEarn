@@ -39,9 +39,10 @@ export class GeminiKeyManagerService {
   private initializeClients(): void {
     for (const pair of this.keyPairs) {
       const keyPairId = pair.projectId
+      const credentials = JSON.parse(fs.readFileSync(pair.keyFile, 'utf-8'))
 
       const storage = new Storage({
-        credentials: JSON.parse(fs.readFileSync(pair.keyFile, 'utf-8')),
+        credentials,
         ...(this.config.proxyUrl && {
           apiEndpoint: `${this.config.proxyUrl}/https://storage.googleapis.com`,
         }),
@@ -53,7 +54,7 @@ export class GeminiKeyManagerService {
         project: pair.projectId,
         location: this.config.location,
         googleAuthOptions: {
-          apiKey: pair.apiKey,
+          credentials,
         },
       })
 
@@ -145,7 +146,7 @@ export class GeminiKeyManagerService {
         )
         return {
           keyPairId,
-          apiKey: shortestCooldownPair.pair.apiKey,
+          apiKey: shortestCooldownPair.pair.apiKey || '',
           projectId: shortestCooldownPair.pair.projectId,
           bucket: shortestCooldownPair.pair.bucket,
           storageClient: this.storageClientCache.get(keyPairId)!,
@@ -162,7 +163,7 @@ export class GeminiKeyManagerService {
 
     return {
       keyPairId,
-      apiKey: selected.pair.apiKey,
+      apiKey: selected.pair.apiKey || '',
       projectId: selected.pair.projectId,
       bucket: selected.pair.bucket,
       storageClient: this.storageClientCache.get(keyPairId)!,

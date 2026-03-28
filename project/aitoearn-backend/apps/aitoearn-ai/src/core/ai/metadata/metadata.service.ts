@@ -90,10 +90,21 @@ export class MetadataService {
     return pickByProvider()
   }
 
-  private pickGeminiModel(): string | undefined {
-    return this.modelsConfigService.config.chat
-      .map(item => item.name)
-      .find(model => model.toLowerCase().includes('gemini'))
+  private pickAlternativeModelByProvider(provider: 'groq' | 'gemini', excludeModel: string): string | undefined {
+    const excluded = excludeModel.toLowerCase()
+    const models = this.modelsConfigService.config.chat.map(item => item.name)
+    return models.find((model) => {
+      const normalized = model.toLowerCase()
+      if (normalized === excluded) {
+        return false
+      }
+
+      if (provider === 'gemini') {
+        return normalized.includes('gemini')
+      }
+
+      return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+    })
   }
 
   private extractText(content: AIMessageChunk['content']): string {
@@ -277,24 +288,45 @@ export class MetadataService {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : ''
-      const hasAuthError = message.includes('Incorrect API key provided') || message.includes('invalid_api_key')
-      const geminiFallbackModel = this.pickGeminiModel()
+      const hasAuthError = message.includes('Incorrect API key provided')
+        || message.includes('invalid_api_key')
+        || message.includes('UNAUTHENTICATED')
+        || message.includes('Unauthorized')
+      const currentProvider = this.inferProviderByModel(model)
+      const sameProviderFallbackModel = this.pickAlternativeModelByProvider(currentProvider, model)
 
-      if (hasAuthError && geminiFallbackModel && geminiFallbackModel !== model) {
-        model = geminiFallbackModel
-        const geminiResult = await this.chatService.userGeminiGenerateContent({
-          userId,
-          userType: UserType.User,
-          model,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
+      if (hasAuthError && sameProviderFallbackModel) {
+        model = sameProviderFallbackModel
+
+        if (currentProvider === 'gemini') {
+          const geminiResult = await this.chatService.userGeminiGenerateContent({
+            userId,
+            userType: UserType.User,
+            model,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+              temperature: 0.6,
+            },
+          })
+          generatedText = this.extractGeminiText(geminiResult)
+          usage = {
+            inputTokens: geminiResult.usageMetadata?.promptTokenCount,
+            outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+          }
+        }
+        else {
+          const completion = await this.chatService.userChatCompletion({
+            userId,
+            userType: UserType.User,
+            model,
+            messages: [{ role: 'user', content: prompt }],
             temperature: 0.6,
-          },
-        })
-        generatedText = this.extractGeminiText(geminiResult)
-        usage = {
-          inputTokens: geminiResult.usageMetadata?.promptTokenCount,
-          outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+          })
+          generatedText = this.extractText(completion.content)
+          usage = {
+            inputTokens: completion.usage.input_tokens,
+            outputTokens: completion.usage.output_tokens,
+          }
         }
       }
       else {
