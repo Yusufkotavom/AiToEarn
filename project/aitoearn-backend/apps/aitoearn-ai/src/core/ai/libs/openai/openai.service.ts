@@ -5,6 +5,17 @@ import OpenAI from 'openai'
 import { OpenaiConfig } from './openai.config'
 import { SoraCharacterResponse, SoraCreateCharacterRequest } from './openai.interface'
 
+type OpenAIChatOptions = Partial<OpenAIChatInput> & {
+  configuration?: {
+    baseURL?: string
+  }
+}
+
+type ChatCompletionOptions = OpenAIChatOptions & {
+  model: string
+  messages: BaseMessage[]
+}
+
 @Injectable()
 export class OpenaiService {
   private readonly logger = new Logger(OpenaiService.name)
@@ -26,23 +37,20 @@ export class OpenaiService {
     })
   }
 
-  private _createChatModel(options: Partial<OpenAIChatInput>): ChatOpenAI {
+  private _createChatModel(options: OpenAIChatOptions): ChatOpenAI {
     return new ChatOpenAI({
       ...options,
       maxRetries: 1,
       timeout: options.timeout ?? this.config.timeout,
       apiKey: options.apiKey ?? this.config.apiKey,
       configuration: {
-        baseURL: this.config.baseUrl,
+        baseURL: options.configuration?.baseURL ?? this.config.baseUrl,
       },
       streaming: true,
     })
   }
 
-  async createChatCompletionStream(options: Partial<OpenAIChatInput> & {
-    model: string
-    messages: BaseMessage[]
-  }) {
+  private async _createChatCompletionStreamWithOptions(options: ChatCompletionOptions) {
     const {
       messages,
     } = options
@@ -51,15 +59,16 @@ export class OpenaiService {
     return await chatModel.stream(messages, options)
   }
 
+  async createChatCompletionStream(options: ChatCompletionOptions) {
+    return await this._createChatCompletionStreamWithOptions(options)
+  }
+
   async createRawStream(options: OpenAI.Chat.ChatCompletionCreateParamsStreaming) {
     return this.openAI.chat.completions.create(options)
   }
 
-  async createChatCompletion(options: Partial<OpenAIChatInput> & {
-    model: string
-    messages: BaseMessage[]
-  }): Promise<AIMessageChunk> {
-    const stream = await this.createChatCompletionStream(options)
+  private async _consumeChatStream(options: ChatCompletionOptions): Promise<AIMessageChunk> {
+    const stream = await this._createChatCompletionStreamWithOptions(options)
     let result: AIMessageChunk | undefined
 
     for await (const chunk of stream) {
@@ -72,6 +81,24 @@ export class OpenaiService {
     }
 
     return result!
+  }
+
+  async createChatCompletion(options: ChatCompletionOptions): Promise<AIMessageChunk> {
+    return await this._consumeChatStream(options)
+  }
+
+  async createGroqChatCompletion(options: ChatCompletionOptions & {
+    groqApiKey: string
+    groqBaseURL: string
+  }): Promise<AIMessageChunk> {
+    return await this._consumeChatStream({
+      ...options,
+      apiKey: options.groqApiKey,
+      configuration: {
+        ...options.configuration,
+        baseURL: options.groqBaseURL,
+      },
+    })
   }
 
   async createImageGeneration(options: Omit<OpenAI.Images.ImageGenerateParams, 'user' | 'stream'>): Promise<OpenAI.Images.ImagesResponse> {

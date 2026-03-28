@@ -1,5 +1,5 @@
 import { AIMessageChunk } from '@langchain/core/messages'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { AppException, ResponseCode, UserType } from '@yikart/common'
 import { UserRepository } from '@yikart/mongodb'
 import { ChatService } from '../chat'
@@ -28,6 +28,7 @@ interface MetadataBatchJob {
 
 @Injectable()
 export class MetadataService {
+  private readonly logger = new Logger(MetadataService.name)
   private readonly jobs = new Map<string, MetadataBatchJob>()
 
   constructor(
@@ -61,7 +62,10 @@ export class MetadataService {
         }
         return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
       })
-      return matched ?? chatModels[0]
+      if (!matched) {
+        return chatModels[0]
+      }
+      return matched
     }
 
     if (requestedModel?.trim()) {
@@ -74,14 +78,20 @@ export class MetadataService {
       const modelName = selectedModel.toLowerCase()
       if (provider === 'gemini' && !modelName.includes('gemini')) {
         const fallbackGemini = chatModels.find(model => model.toLowerCase().includes('gemini'))
-        return fallbackGemini ?? selectedModel
+        if (!fallbackGemini) {
+          throw new AppException(ResponseCode.InvalidModel, { provider, requestedModel: normalizedRequestedModel })
+        }
+        return fallbackGemini
       }
       if (provider === 'groq' && modelName.includes('gemini')) {
         const fallbackGroq = chatModels.find((model) => {
           const normalized = model.toLowerCase()
           return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
         })
-        return fallbackGroq ?? selectedModel
+        if (!fallbackGroq) {
+          throw new AppException(ResponseCode.InvalidModel, { provider, requestedModel: normalizedRequestedModel })
+        }
+        return fallbackGroq
       }
 
       return selectedModel
@@ -90,10 +100,21 @@ export class MetadataService {
     return pickByProvider()
   }
 
-  private pickGeminiModel(): string | undefined {
-    return this.modelsConfigService.config.chat
-      .map(item => item.name)
-      .find(model => model.toLowerCase().includes('gemini'))
+  private pickAlternativeModelByProvider(provider: 'groq' | 'gemini', excludeModel: string): string | undefined {
+    const excluded = excludeModel.toLowerCase()
+    const models = this.modelsConfigService.config.chat.map(item => item.name)
+    return models.find((model) => {
+      const normalized = model.toLowerCase()
+      if (normalized === excluded) {
+        return false
+      }
+
+      if (provider === 'gemini') {
+        return normalized.includes('gemini')
+      }
+
+      return normalized.includes('groq') || normalized.includes('llama') || normalized.includes('qwen')
+    })
   }
 
   private extractText(content: AIMessageChunk['content']): string {
@@ -218,8 +239,64 @@ export class MetadataService {
     }
   }
 
+  private buildLocalFallbackMetadata(item: GenerateMetadataDto['item']): Pick<GenerateMetadataVo, 'title' | 'description' | 'tags'> {
+    const title = item.title?.trim() || 'Untitled content'
+    const description = item.description?.trim() || `Content for ${item.platforms.join(', ') || 'social media'}`
+    const normalizedTags = item.tags
+      .map(tag => tag.replace(/^#/, '').trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 10)
+
+    return {
+      title,
+      description,
+      tags: normalizedTags.length > 0 ? normalizedTags : ['content', 'social', 'post'],
+    }
+  }
+
+  private buildFailureDetail(error: unknown): Record<string, unknown> {
+    if (!(error instanceof Error)) {
+      return {
+        type: typeof error,
+        raw: error,
+      }
+    }
+
+    const ext = error as Error & {
+      code?: string
+      status?: number
+      param?: string | null
+      requestID?: string
+      lc_error_code?: string
+      error?: {
+        code?: string
+        message?: string
+        type?: string
+      }
+      response?: {
+        status?: number
+        data?: unknown
+      }
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      code: ext.code ?? ext.error?.code,
+      status: ext.status ?? ext.response?.status,
+      requestId: ext.requestID,
+      lcErrorCode: ext.lc_error_code,
+      providerErrorType: ext.error?.type,
+      providerErrorMessage: ext.error?.message,
+      stack: error.stack?.split('\n').slice(0, 6).join('\n'),
+    }
+  }
+
   async generateMetadata(userId: string, request: GenerateMetadataDto): Promise<GenerateMetadataVo> {
     let model = this.pickModel(request.provider, request.model)
+    let activeProvider: 'groq' | 'gemini' = request.provider === 'auto'
+      ? this.inferProviderByModel(model)
+      : request.provider
     const renderedPromptTemplate = this.renderPromptTemplate(request.promptTemplate, request)
 
     const prompt = request.item.prompt?.trim().length
@@ -244,7 +321,7 @@ export class MetadataService {
     let usage: { inputTokens?: number, outputTokens?: number } = {}
 
     try {
-      if (model.toLowerCase().includes('gemini')) {
+      if (activeProvider === 'gemini') {
         const geminiResult = await this.chatService.userGeminiGenerateContent({
           userId,
           userType: UserType.User,
@@ -277,38 +354,92 @@ export class MetadataService {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : ''
-      const hasAuthError = message.includes('Incorrect API key provided') || message.includes('invalid_api_key')
-      const geminiFallbackModel = this.pickGeminiModel()
+      const hasAuthError = message.includes('Incorrect API key provided')
+        || message.includes('invalid_api_key')
+        || message.includes('Invalid API Key')
+        || message.includes('UNAUTHENTICATED')
+        || message.includes('Unauthorized')
+      const sameProviderFallbackModel = this.pickAlternativeModelByProvider(activeProvider, model)
 
-      if (hasAuthError && geminiFallbackModel && geminiFallbackModel !== model) {
-        model = geminiFallbackModel
-        const geminiResult = await this.chatService.userGeminiGenerateContent({
-          userId,
-          userType: UserType.User,
-          model,
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
-            temperature: 0.6,
-          },
-        })
-        generatedText = this.extractGeminiText(geminiResult)
-        usage = {
-          inputTokens: geminiResult.usageMetadata?.promptTokenCount,
-          outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+      const shouldRetrySameProviderModel = hasAuthError
+        && activeProvider === 'gemini'
+        && !!sameProviderFallbackModel
+
+      if (shouldRetrySameProviderModel) {
+        model = sameProviderFallbackModel
+        try {
+          if (activeProvider === 'gemini') {
+            const geminiResult = await this.chatService.userGeminiGenerateContent({
+              userId,
+              userType: UserType.User,
+              model,
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              config: {
+                temperature: 0.6,
+              },
+            })
+            generatedText = this.extractGeminiText(geminiResult)
+            usage = {
+              inputTokens: geminiResult.usageMetadata?.promptTokenCount,
+              outputTokens: geminiResult.usageMetadata?.candidatesTokenCount,
+            }
+          }
+          else {
+            const completion = await this.chatService.userChatCompletion({
+              userId,
+              userType: UserType.User,
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.6,
+            })
+            generatedText = this.extractText(completion.content)
+            usage = {
+              inputTokens: completion.usage.input_tokens,
+              outputTokens: completion.usage.output_tokens,
+            }
+          }
+        }
+        catch (retryError) {
+          this.logger.warn({
+            provider: activeProvider,
+            model,
+            fallbackModel: sameProviderFallbackModel,
+            retryFailure: this.buildFailureDetail(retryError),
+          }, 'Metadata provider retry failed, using local fallback')
+          const localFallback = this.buildLocalFallbackMetadata(request.item)
+          generatedText = JSON.stringify(localFallback)
+          model = 'local-fallback'
         }
       }
+      else if (hasAuthError) {
+        this.logger.warn({
+          provider: activeProvider,
+          model,
+          failure: this.buildFailureDetail(error),
+        }, 'Metadata auth failed, skipping same-provider retry and using local fallback')
+        const localFallback = this.buildLocalFallbackMetadata(request.item)
+        generatedText = JSON.stringify(localFallback)
+        model = 'local-fallback'
+      }
       else {
-        throw error
+        this.logger.warn({
+          provider: activeProvider,
+          model,
+          failure: this.buildFailureDetail(error),
+        }, 'Metadata provider call failed, using local fallback')
+        const localFallback = this.buildLocalFallbackMetadata(request.item)
+        generatedText = JSON.stringify(localFallback)
+        model = 'local-fallback'
       }
     }
 
     const parsed = this.parseGeneratedMetadata(generatedText)
     const finalMetadata = this.applyStrategy(request.strategy, request.item, parsed)
-    const resolvedProvider = request.provider === 'auto' ? this.inferProviderByModel(model) : request.provider
+    activeProvider = request.provider === 'auto' ? this.inferProviderByModel(model) : request.provider
 
     return {
       ...finalMetadata,
-      provider: resolvedProvider,
+      provider: activeProvider,
       model,
       usage,
     }

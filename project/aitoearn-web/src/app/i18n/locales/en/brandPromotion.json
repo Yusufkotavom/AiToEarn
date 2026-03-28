@@ -328,6 +328,8 @@
     "metadataResetPrompt": "Reset Prompt",
     "apiKeyLocationHint": "API keys are read from server environment variables (GROQ_API_KEY / GEMINI_API_KEY).",
     "metadataGenerateSuccess": "Metadata generated successfully",
+    "metadataGenerateNoChanges": "Metadata generated, but no fields changed (Fill Empty Fields Only).",
+    "metadataGenerateFallbackUsed": "AI provider failed. Showing local fallback metadata.",
     "metadataGenerateFailed": "Failed to generate metadata",
     "instagramImageAspectRatio": "Instagram image aspect ratio must be between 4:5 and 1.91:1",
     "instagramVideoAspectRatio": "Instagram video aspect ratio must be between 9:16 and 4:5",

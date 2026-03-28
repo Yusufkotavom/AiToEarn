@@ -134,8 +134,10 @@ module.exports = {
       urlAuthPrimaryKey: 'd8eea018341d4e9687ead69bea628271',
     },
     openai: {
-      baseUrl: AI_PROXY_URL ? `${AI_PROXY_URL}/${OPENAI_BASE_URL}` : OPENAI_BASE_URL,
-      apiKey: OPENAI_API_KEY,
+      baseUrl: AI_PROXY_URL
+        ? `${AI_PROXY_URL}/${OPENAI_BASE_URL || 'https://api.openai.com/v1'}`
+        : (OPENAI_BASE_URL || 'https://api.openai.com/v1'),
+      apiKey: OPENAI_API_KEY || '',
     },
     grok: {
       baseUrl: 'https://api.x.ai',
@@ -249,6 +251,48 @@ module.exports = {
             tiers: [
               {
                 input: { text: '0', image: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
+          name: 'llama-3.3-70b-versatile',
+          description: 'Groq Llama 3.3 70B Versatile',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
+          name: 'llama-3.1-70b-versatile',
+          description: 'Groq Llama 3.1 70B Versatile',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
+                output: { text: '0' },
+              },
+            ],
+          },
+        },
+        {
+          name: 'mixtral-8x7b-32768',
+          description: 'Groq Mixtral 8x7B',
+          inputModalities: ['text'],
+          outputModalities: ['text'],
+          pricing: {
+            tiers: [
+              {
+                input: { text: '0' },
                 output: { text: '0' },
               },
             ],

@@ -111,17 +111,35 @@ export class ChatService {
 
   async chatCompletion(request: ChatCompletionDto, userId: string) {
     const { messages, model, ...params } = request
+    const normalizedModel = model.toLowerCase()
+    const isGroqCompatibleModel = normalizedModel.includes('llama')
+      || normalizedModel.includes('mixtral')
+      || normalizedModel.includes('groq')
 
     const langchainMessages: BaseMessage[] = messages.map((message) => {
       return new ChatMessage(message)
     })
 
-    const result = await this.openaiService.createChatCompletion({
+    this.logger.log({
       model,
-      messages: langchainMessages,
-      ...params,
-      modalities: params.modalities as OpenAIClient.Chat.ChatCompletionModality[],
-    })
+      route: isGroqCompatibleModel ? 'groq-openai-compatible' : 'default-openai-compatible',
+    }, 'Chat completion routing')
+
+    const result = isGroqCompatibleModel
+      ? await this.openaiService.createGroqChatCompletion({
+          model,
+          messages: langchainMessages,
+          ...params,
+          groqApiKey: config.ai.grok.apiKey,
+          groqBaseURL: 'https://api.groq.com/openai/v1',
+          modalities: params.modalities as OpenAIClient.Chat.ChatCompletionModality[],
+        })
+      : await this.openaiService.createChatCompletion({
+          model,
+          messages: langchainMessages,
+          ...params,
+          modalities: params.modalities as OpenAIClient.Chat.ChatCompletionModality[],
+        })
 
     const usage = result.usage_metadata
     if (!usage) {
