@@ -6,6 +6,7 @@ WORKDIR /app
 
 COPY . ./
 
+ENV CI=true
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm nx build aitoearn-ai
 
