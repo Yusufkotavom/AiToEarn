@@ -2,7 +2,7 @@ import lodash from 'lodash'
 import { createPersistStore } from '@/utils/createPersistStore'
 
 /** 日历视图类型 */
-export type CalendarViewType = 'month' | 'week'
+export type CalendarViewType = 'month' | 'week' | 'list'
 
 export interface ISystemStore {
   /** 是否永久禁用余额不足提示 */

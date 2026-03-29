@@ -5,8 +5,10 @@ import type { ScheduleRule, SchedulerFrequency } from '@/api/scheduler'
 import { AccountPlatInfoMap } from '@/app/config/platConfig'
 import dayjs from 'dayjs'
 import { CalendarClock, Loader2, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiGetMaterialGroupList, apiGetMaterialList } from '@/api/material'
+import { getPublishList } from '@/api/plat/publish'
+import type { PublishRecordItem } from '@/api/plat/types/publish.types'
 import {
   apiCreateScheduleBatch,
   apiCreateScheduleRule,
@@ -27,6 +29,19 @@ import { useAccountStore } from '@/store/account'
 
 type QueueStatus = 'ready' | 'queued' | 'running' | 'published' | 'failed'
 type SchedulerMode = 'viral_slots' | 'interval' | 'recurrence'
+type PostPanelMode = 'queue' | 'list'
+type ListStatusFilter = 'all' | 'queued' | 'running' | 'published' | 'failed'
+type VirtualListRow = {
+  key: string
+  kind: 'date' | 'item'
+  height: number
+  date?: string
+  item?: PublishRecordItem
+}
+
+const LIST_DATE_ROW_HEIGHT = 34
+const LIST_ITEM_ROW_HEIGHT = 50
+const LIST_OVERSCAN_PX = 320
 
 const WEEKDAY_OPTIONS = [
   { label: 'Sun', value: 0 },
@@ -58,6 +73,7 @@ export default function ContentSchedulerShell() {
   const [intervalHours, setIntervalHours] = useState(4)
   const [accountId, setAccountId] = useState<string>('')
   const [queueStatus, setQueueStatus] = useState<QueueStatus>('ready')
+  const [postPanelMode, setPostPanelMode] = useState<PostPanelMode>('queue')
   const [queueOverview, setQueueOverview] = useState<{
     counts: Record<QueueStatus, number>
     lists: Record<QueueStatus, any[]>
@@ -71,6 +87,14 @@ export default function ContentSchedulerShell() {
   const [recurrenceTime, setRecurrenceTime] = useState('10:00')
   const [recurrenceWeekdays, setRecurrenceWeekdays] = useState<number[]>([1])
   const [lastActionMessage, setLastActionMessage] = useState<string>('')
+  const [allPosts, setAllPosts] = useState<PublishRecordItem[]>([])
+  const [postsLoading, setPostsLoading] = useState(false)
+  const [visiblePostCount, setVisiblePostCount] = useState(40)
+  const postListContainerRef = useRef<HTMLDivElement | null>(null)
+  const [listScrollTop, setListScrollTop] = useState(0)
+  const [listViewportHeight, setListViewportHeight] = useState(360)
+  const [listPlatformFilter, setListPlatformFilter] = useState<string>('all')
+  const [listStatusFilter, setListStatusFilter] = useState<ListStatusFilter>('all')
 
   const selectedAccount = useMemo(
     () => accountList.find(item => item.id === accountId),
@@ -135,6 +159,20 @@ export default function ContentSchedulerShell() {
     }
   }
 
+  const loadAllPosts = async () => {
+    setPostsLoading(true)
+    try {
+      const res = await getPublishList({})
+      const posts = (res?.data || []) as PublishRecordItem[]
+      posts.sort((a, b) => dayjs(b.publishTime).valueOf() - dayjs(a.publishTime).valueOf())
+      setAllPosts(posts)
+      setVisiblePostCount(40)
+    }
+    finally {
+      setPostsLoading(false)
+    }
+  }
+
   const loadRules = async () => {
     const res = await apiListScheduleRules()
     setRules(res?.data || [])
@@ -158,6 +196,14 @@ export default function ContentSchedulerShell() {
       void loadMaterials(selectedGroupId)
     }
   }, [selectedGroupId])
+
+  useEffect(() => {
+    setVisiblePostCount(40)
+    setListScrollTop(0)
+    if (postListContainerRef.current) {
+      postListContainerRef.current.scrollTop = 0
+    }
+  }, [listPlatformFilter, listStatusFilter])
 
   const toggleMaterial = (id: string) => {
     setSelectedIds((prev) => {
@@ -301,6 +347,129 @@ export default function ContentSchedulerShell() {
   }
 
   const currentQueueList = queueOverview.lists[queueStatus] || []
+  const visiblePosts = useMemo(
+    () => {
+      const normalizeStatus = (status: unknown): ListStatusFilter | 'unknown' => {
+        if (status === 1 || status === '1' || status === 'published')
+          return 'published'
+        if (status === 2 || status === '2' || status === 'publishing' || status === 'running')
+          return 'running'
+        if (status === -1 || status === '-1' || status === 'failed')
+          return 'failed'
+        if (status === 0 || status === '0' || status === 'queued' || status === 'unpublish')
+          return 'queued'
+        return 'unknown'
+      }
+
+      const filtered = allPosts.filter((post) => {
+        if (listPlatformFilter !== 'all' && post.accountType !== listPlatformFilter) {
+          return false
+        }
+        if (listStatusFilter !== 'all') {
+          const postStatus = normalizeStatus(post.status)
+          if (postStatus !== listStatusFilter) {
+            return false
+          }
+        }
+        return true
+      })
+
+      return filtered.slice(0, visiblePostCount)
+    },
+    [allPosts, listPlatformFilter, listStatusFilter, visiblePostCount],
+  )
+  const filteredTotalPosts = useMemo(() => {
+    const normalizeStatus = (status: unknown): ListStatusFilter | 'unknown' => {
+      if (status === 1 || status === '1' || status === 'published')
+        return 'published'
+      if (status === 2 || status === '2' || status === 'publishing' || status === 'running')
+        return 'running'
+      if (status === -1 || status === '-1' || status === 'failed')
+        return 'failed'
+      if (status === 0 || status === '0' || status === 'queued' || status === 'unpublish')
+        return 'queued'
+      return 'unknown'
+    }
+    return allPosts.filter((post) => {
+      if (listPlatformFilter !== 'all' && post.accountType !== listPlatformFilter) {
+        return false
+      }
+      if (listStatusFilter !== 'all') {
+        const postStatus = normalizeStatus(post.status)
+        if (postStatus !== listStatusFilter) {
+          return false
+        }
+      }
+      return true
+    }).length
+  }, [allPosts, listPlatformFilter, listStatusFilter])
+  const hasMorePosts = visiblePostCount < filteredTotalPosts
+  const listPlatformOptions = useMemo(
+    () => Array.from(new Set(allPosts.map(post => post.accountType).filter(Boolean))),
+    [allPosts],
+  )
+  const virtualRows = useMemo(() => {
+    const rows: VirtualListRow[] = []
+    let currentDate = ''
+    for (const post of visiblePosts) {
+      const dateKey = dayjs(post.publishTime).format('YYYY-MM-DD')
+      if (dateKey !== currentDate) {
+        currentDate = dateKey
+        rows.push({
+          key: `date-${dateKey}`,
+          kind: 'date',
+          date: dateKey,
+          height: LIST_DATE_ROW_HEIGHT,
+        })
+      }
+      rows.push({
+        key: post.id,
+        kind: 'item',
+        item: post,
+        height: LIST_ITEM_ROW_HEIGHT,
+      })
+    }
+    return rows
+  }, [visiblePosts])
+  const virtualLayout = useMemo(() => {
+    const offsets: number[] = new Array(virtualRows.length)
+    let totalHeight = 0
+    for (let i = 0; i < virtualRows.length; i++) {
+      offsets[i] = totalHeight
+      totalHeight += virtualRows[i].height
+    }
+    return { offsets, totalHeight }
+  }, [virtualRows])
+
+  const binarySearchStartIndex = (targetTop: number) => {
+    const { offsets } = virtualLayout
+    if (offsets.length === 0)
+      return 0
+    let left = 0
+    let right = offsets.length - 1
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2)
+      const rowBottom = offsets[mid] + virtualRows[mid].height
+      if (rowBottom < targetTop)
+        left = mid + 1
+      else
+        right = mid
+    }
+    return left
+  }
+
+  const virtualRange = useMemo(() => {
+    if (virtualRows.length === 0) {
+      return { start: 0, end: 0 }
+    }
+    const start = binarySearchStartIndex(Math.max(0, listScrollTop - LIST_OVERSCAN_PX))
+    const endTarget = listScrollTop + listViewportHeight + LIST_OVERSCAN_PX
+    let end = start
+    while (end < virtualRows.length && virtualLayout.offsets[end] < endTarget) {
+      end++
+    }
+    return { start, end: Math.min(virtualRows.length, end + 1) }
+  }, [listScrollTop, listViewportHeight, virtualRows, virtualLayout])
   const isBatchReady = !!selectedAccount && selectedIds.size > 0 && !!scheduleStartAt
   const batchDisabledReason = !selectedAccount
     ? 'Select account first'
@@ -518,36 +687,187 @@ export default function ContentSchedulerShell() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base">Queue Overview</CardTitle>
-                <Button variant="outline" size="sm" onClick={() => void loadQueueOverview()}>Refresh</Button>
+                <div className="flex items-center gap-2">
+                  <div className="rounded border p-0.5 flex">
+                    <Button
+                      variant={postPanelMode === 'queue' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => setPostPanelMode('queue')}
+                    >
+                      Queue
+                    </Button>
+                    <Button
+                      variant={postPanelMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => {
+                        setPostPanelMode('list')
+                        if (allPosts.length === 0) {
+                          void loadAllPosts()
+                        }
+                      }}
+                    >
+                      List
+                    </Button>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (postPanelMode === 'queue')
+                        void loadQueueOverview()
+                      else
+                        void loadAllPosts()
+                    }}
+                  >
+                    Refresh
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="grid grid-cols-5 gap-1 text-[11px]">
-                {(['ready', 'queued', 'running', 'published', 'failed'] as QueueStatus[]).map(status => (
-                  <button
-                    key={status}
-                    className={cn(
-                      'rounded border px-2 py-1 uppercase',
-                      queueStatus === status && 'bg-primary text-primary-foreground',
-                    )}
-                    onClick={() => setQueueStatus(status)}
-                  >
-                    {status}
-                    <div className="font-semibold">{queueOverview.counts[status] || 0}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="rounded border p-2 max-h-[260px] overflow-auto space-y-1">
-                {currentQueueList.length === 0 && (
-                  <div className="text-xs text-muted-foreground">No items</div>
-                )}
-                {currentQueueList.map(item => (
-                  <div key={item.id} className="rounded border px-2 py-1">
-                    <div className="text-xs font-medium truncate">{item.title || item.id}</div>
-                    <div className="text-[11px] text-muted-foreground">{dayjs(item.publishTime).format('YYYY-MM-DD HH:mm')}</div>
+              {postPanelMode === 'queue' && (
+                <>
+                  <div className="grid grid-cols-5 gap-1 text-[11px]">
+                    {(['ready', 'queued', 'running', 'published', 'failed'] as QueueStatus[]).map(status => (
+                      <button
+                        key={status}
+                        className={cn(
+                          'rounded border px-2 py-1 uppercase',
+                          queueStatus === status && 'bg-primary text-primary-foreground',
+                        )}
+                        onClick={() => setQueueStatus(status)}
+                      >
+                        {status}
+                        <div className="font-semibold">{queueOverview.counts[status] || 0}</div>
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
+                  <div className="rounded border p-2 max-h-[260px] overflow-auto space-y-1">
+                    {currentQueueList.length === 0 && (
+                      <div className="text-xs text-muted-foreground">No items</div>
+                    )}
+                    {currentQueueList.map(item => (
+                      <div key={item.id} className="rounded border px-2 py-1">
+                        <div className="text-xs font-medium truncate">{item.title || item.id}</div>
+                        <div className="text-[11px] text-muted-foreground">{dayjs(item.publishTime).format('YYYY-MM-DD HH:mm')}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {postPanelMode === 'list' && (
+                <>
+                  <div className="text-[11px] text-muted-foreground">
+                    All posts: {filteredTotalPosts} · showing {visiblePosts.length}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={listPlatformFilter} onValueChange={setListPlatformFilter}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Platform" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Platforms</SelectItem>
+                        {listPlatformOptions.map(platform => (
+                          <SelectItem key={platform} value={platform}>{platform}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={listStatusFilter}
+                      onValueChange={value => setListStatusFilter(value as ListStatusFilter)}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="queued">Queued</SelectItem>
+                        <SelectItem value="running">Running</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div
+                    ref={postListContainerRef}
+                    className="rounded border p-2 max-h-[360px] overflow-auto space-y-2"
+                    onScroll={(event) => {
+                      const element = event.currentTarget
+                      setListScrollTop(element.scrollTop)
+                      setListViewportHeight(element.clientHeight)
+                      if (element.scrollTop + element.clientHeight >= element.scrollHeight - 60 && hasMorePosts) {
+                        setVisiblePostCount(prev => Math.min(prev + 30, filteredTotalPosts))
+                      }
+                    }}
+                  >
+                    {postsLoading && (
+                      <div className="text-xs text-muted-foreground">Loading posts...</div>
+                    )}
+                    {!postsLoading && virtualRows.length === 0 && (
+                      <div className="text-xs text-muted-foreground">No posts</div>
+                    )}
+                    {virtualRows.length > 0 && (
+                      <div style={{ height: virtualLayout.totalHeight, position: 'relative' }}>
+                        {virtualRows.slice(virtualRange.start, virtualRange.end).map((row, index) => {
+                          const actualIndex = virtualRange.start + index
+                          const top = virtualLayout.offsets[actualIndex]
+                          if (row.kind === 'date') {
+                            return (
+                              <div
+                                key={row.key}
+                                className="rounded border bg-background/95 text-[11px] font-semibold px-2 py-1"
+                                style={{
+                                  position: 'absolute',
+                                  top,
+                                  left: 0,
+                                  right: 0,
+                                  height: row.height,
+                                }}
+                              >
+                                {dayjs(row.date).format('ddd, DD MMM YYYY')}
+                              </div>
+                            )
+                          }
+
+                          const item = row.item!
+                          return (
+                            <div
+                              key={row.key}
+                              className="rounded border px-2 py-1.5"
+                              style={{
+                                position: 'absolute',
+                                top,
+                                left: 0,
+                                right: 0,
+                                height: row.height,
+                              }}
+                            >
+                              <div className="text-xs font-medium truncate">{item.title || item.id}</div>
+                              <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                                <span>{dayjs(item.publishTime).format('HH:mm')}</span>
+                                <span className="uppercase">{item.accountType || '-'}</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {hasMorePosts && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setVisiblePostCount(prev => Math.min(prev + 30, filteredTotalPosts))}
+                      >
+                        Load more
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

@@ -37,6 +37,7 @@ import { useAccountStore } from '@/store/account'
 import { useSystemStore } from '@/store/system'
 import CalendarTimingItem from '../CalendarTimingItem'
 import MobileCalendar from './MobileCalendar'
+import PCDayListView from './PCDayListView'
 import PCWeekView from './PCWeekView'
 import './calendarTiming.scss'
 
@@ -187,7 +188,7 @@ const CalendarTiming = memo(
     const handlePrev = () => {
       triggerAnimation('right')
       setTimeout(() => {
-        if (calendarViewType === 'month') {
+        if (calendarViewType === 'month' || calendarViewType === 'list') {
           calendarRef.current?.getApi().prev()
           const newDate = dayjs(currentDate).subtract(1, 'month').toDate()
           setCurrentDate(newDate)
@@ -206,7 +207,7 @@ const CalendarTiming = memo(
     const handleNext = () => {
       triggerAnimation('left')
       setTimeout(() => {
-        if (calendarViewType === 'month') {
+        if (calendarViewType === 'month' || calendarViewType === 'list') {
           calendarRef.current?.getApi().next()
           const newDate = dayjs(currentDate).add(1, 'month').toDate()
           setCurrentDate(newDate)
@@ -227,7 +228,7 @@ const CalendarTiming = memo(
       triggerAnimation('fade')
       setTimeout(() => {
         const today = new Date()
-        if (calendarViewType === 'month') {
+        if (calendarViewType === 'month' || calendarViewType === 'list') {
           calendarRef.current?.getApi().today()
           setCurrentDate(today)
           getPubRecord({ dateRange: getMonthDateRange(today) })
@@ -252,7 +253,7 @@ const CalendarTiming = memo(
           }
           else {
             getPubRecord({ dateRange: getMonthDateRange(currentDate) })
-            // 切换到月视图时，需要重新计算日历单元格宽度
+            // 切换到非周视图时，需要重新计算日历单元格宽度
             // 延迟执行，等待 DOM 渲染完成
             setTimeout(() => {
               handleResize()
@@ -352,6 +353,18 @@ const CalendarTiming = memo(
                         ref={calendarTimingCalendarRef}
                       >
                         <DndProvider backend={HTML5Backend}>{calendarContent}</DndProvider>
+                      </div>
+                    ) : calendarViewType === 'list' ? (
+                      <div
+                        data-testid="calendar-list-view"
+                        className="h-full overflow-hidden"
+                        ref={calendarTimingCalendarRef}
+                      >
+                        <PCDayListView
+                          recordMap={recordMap}
+                          loading={listLoading}
+                          onClickPub={date => openNewWork({ date })}
+                        />
                       </div>
                     ) : (
                       <PCWeekView

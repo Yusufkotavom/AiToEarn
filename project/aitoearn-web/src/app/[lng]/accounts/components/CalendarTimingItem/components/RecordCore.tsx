@@ -269,7 +269,7 @@ const RecordCore = memo(
           'shadow-none cursor-pointer',
         )}
         style={{
-          width: isMobile || calendarViewType === 'week' ? '100%' : `${calendarCallWidth}px`,
+          width: isMobile || calendarViewType === 'week' || calendarViewType === 'list' ? '100%' : `${calendarCallWidth}px`,
         }}
       >
         <div className={cn('flex items-center', isMobile ? 'gap-2.5' : 'gap-1.5')}>

@@ -12,7 +12,7 @@
 
 import type { CalendarViewType } from '@/store/system'
 import dayjs from 'dayjs'
-import { CalendarDays, ChevronLeft, ChevronRight, Grid3X3 } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Grid3X3, List } from 'lucide-react'
 import { memo, useMemo } from 'react'
 import { useTransClient } from '@/app/i18n/client'
 import { Button } from '@/components/ui/button'
@@ -45,7 +45,7 @@ const CalendarToolbar = memo<ICalendarToolbarProps>(
       const locale = getDayjsLocale(lng)
       dayjs.locale(locale)
 
-      if (viewType === 'month') {
+      if (viewType === 'month' || viewType === 'list') {
         return dayjs(currentDate).format('MMMM YYYY')
       }
 
@@ -167,13 +167,26 @@ const CalendarToolbar = memo<ICalendarToolbarProps>(
               variant="ghost"
               size="icon"
               className={cn(
-                'h-7 w-7 md:h-8 md:w-8 rounded-l-none cursor-pointer',
+                'h-7 w-7 md:h-8 md:w-8 rounded-none cursor-pointer',
                 viewType === 'month' && 'bg-accent',
               )}
               onClick={() => onViewTypeChange('month')}
               title={t('calendar.monthView')}
             >
               <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              data-testid="calendar-view-list"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-7 w-7 md:h-8 md:w-8 rounded-l-none cursor-pointer',
+                viewType === 'list' && 'bg-accent',
+              )}
+              onClick={() => onViewTypeChange('list')}
+              title="List view"
+            >
+              <List className="h-4 w-4" />
             </Button>
           </div>
 
