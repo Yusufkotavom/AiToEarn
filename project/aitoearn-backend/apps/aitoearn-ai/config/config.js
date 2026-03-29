@@ -164,12 +164,11 @@ module.exports = {
       ...(AICSO_BASE_URL && { baseUrl: AICSO_BASE_URL }),
     },
     pollinations: {
-      imageBaseUrl: POLLINATIONS_IMAGE_BASE_URL || 'https://image.pollinations.ai',
-      videoBaseUrl: POLLINATIONS_VIDEO_BASE_URL || 'https://video.pollinations.ai',
+      imageBaseUrl: POLLINATIONS_IMAGE_BASE_URL || 'https://gen.pollinations.ai/image',
+      videoBaseUrl: POLLINATIONS_VIDEO_BASE_URL || 'https://gen.pollinations.ai/video',
       appUrl: POLLINATIONS_APP_URL || 'https://api.piiblog.net',
-      // NOTE: defaults are set for local testing convenience only.
-      secretKey: POLLINATIONS_SECRET_KEY || 'sk_YYAJJZe63hsQVMTUMReGeVOz8znesFXE',
-      publishableKey: POLLINATIONS_PUBLISHABLE_KEY || 'pk_Vdi4zmEwgFC9MegU',
+      secretKey: POLLINATIONS_SECRET_KEY || '',
+      publishableKey: POLLINATIONS_PUBLISHABLE_KEY || '',
     },
     aideo: {
       vCreative: {
@@ -414,8 +413,8 @@ module.exports = {
             pricing: '0',
           },
           {
-            name: 'pollinations-imagen',
-            description: 'Pollinations Imagen',
+            name: 'pollinations-zimage',
+            description: 'Pollinations Z-Image',
             sizes: ['1024x1024', '1280x720', '720x1280'],
             qualities: ['standard'],
             styles: [],
@@ -530,8 +529,8 @@ module.exports = {
             ],
           },
           {
-            name: 'pollinations-veo-3.1',
-            description: 'Pollinations Veo 3.1',
+            name: 'pollinations-veo',
+            description: 'Pollinations Veo',
             channel: 'pollinations',
             modes: ['text2video', 'image2video'],
             resolutions: ['720p'],

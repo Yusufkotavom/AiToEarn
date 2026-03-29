@@ -20,7 +20,7 @@ const generateMediaSchema = z.object({
 
 const pollinationsImageSchema = z.object({
   prompt: z.string().min(1),
-  model: z.enum(['flux', 'gptimage', 'imagen']).default('flux'),
+  model: z.enum(['flux', 'gptimage', 'zimage', 'imagen']).default('flux'),
   width: z.number().int().min(256).max(2048).default(1024),
   height: z.number().int().min(256).max(2048).default(1024),
   seed: z.number().int().optional(),
@@ -30,7 +30,7 @@ const pollinationsImageSchema = z.object({
 
 const pollinationsVideoSchema = z.object({
   prompt: z.string().min(1),
-  model: z.enum(['veo-3.1', 'seedance']).default('veo-3.1'),
+  model: z.enum(['veo', 'veo-3.1', 'seedance']).default('veo'),
   width: z.number().int().min(256).max(1920).default(720),
   height: z.number().int().min(256).max(1920).default(1280),
   image: z.string().url().optional(),
@@ -106,6 +106,19 @@ export class MediaMcp {
     private readonly geminiVideoService: GeminiVideoService,
     private readonly grokVideoService: GrokVideoService,
   ) { }
+
+  private buildPollinationsMediaUrl(baseUrl: string, prompt: string, kind: 'image' | 'video') {
+    const trimmedBaseUrl = baseUrl.replace(/\/+$/, '')
+    const encodedPrompt = encodeURIComponent(prompt)
+
+    if (/(\/image|\/video|\/prompt)$/i.test(trimmedBaseUrl)) {
+      return new URL(`${trimmedBaseUrl}/${encodedPrompt}`)
+    }
+    if (trimmedBaseUrl.includes('gen.pollinations.ai')) {
+      return new URL(`${trimmedBaseUrl}/${kind}/${encodedPrompt}`)
+    }
+    return new URL(`${trimmedBaseUrl}/prompt/${encodedPrompt}`)
+  }
 
   createGenerateImageTool(userId: string, userType: UserType) {
     return wrapTool(
@@ -471,14 +484,15 @@ Returns task ID for status tracking.`,
 Available models (from Pollinations docs ecosystem):
 - flux (default)
 - gptimage
-- imagen
+- zimage
 
 Returns a direct media URL from Pollinations.`,
       pollinationsImageSchema.shape,
       async ({ prompt, model, width, height, seed, safe, nologo }) => {
-        const imageBaseUrl = process.env['POLLINATIONS_IMAGE_BASE_URL'] || 'https://image.pollinations.ai'
-        const url = new URL(`${imageBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
-        url.searchParams.set('model', model)
+        const imageBaseUrl = process.env['POLLINATIONS_IMAGE_BASE_URL'] || 'https://gen.pollinations.ai/image'
+        const vendorModel = model === 'imagen' ? 'zimage' : model
+        const url = this.buildPollinationsMediaUrl(imageBaseUrl, prompt, 'image')
+        url.searchParams.set('model', vendorModel)
         url.searchParams.set('width', String(width))
         url.searchParams.set('height', String(height))
         url.searchParams.set('nologo', String(nologo))
@@ -512,7 +526,7 @@ Returns a direct media URL from Pollinations.`,
       `Generate video with Pollinations models.
 
 Available models (from Pollinations docs ecosystem):
-- veo-3.1 (default)
+- veo (default)
 - seedance
 
 Generation Modes:
@@ -522,9 +536,10 @@ Generation Modes:
 Returns a direct media URL from Pollinations.`,
       pollinationsVideoSchema.shape,
       async ({ prompt, model, width, height, image, seed, safe }) => {
-        const videoBaseUrl = process.env['POLLINATIONS_VIDEO_BASE_URL'] || 'https://video.pollinations.ai'
-        const url = new URL(`${videoBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
-        url.searchParams.set('model', model)
+        const videoBaseUrl = process.env['POLLINATIONS_VIDEO_BASE_URL'] || 'https://gen.pollinations.ai/video'
+        const vendorModel = model === 'veo-3.1' ? 'veo' : model
+        const url = this.buildPollinationsMediaUrl(videoBaseUrl, prompt, 'video')
+        url.searchParams.set('model', vendorModel)
         url.searchParams.set('width', String(width))
         url.searchParams.set('height', String(height))
         if (image) {

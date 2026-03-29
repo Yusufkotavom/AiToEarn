@@ -57,9 +57,9 @@ interface VideoGenerationModelConfig {
 
 const pollinationsVideoFallbackModels: VideoGenerationModelConfig[] = [
   {
-    name: 'pollinations-veo-3.1',
-    description: 'Pollinations Veo 3.1',
-    summary: 'Pollinations video generation using Veo 3.1',
+    name: 'pollinations-veo',
+    description: 'Pollinations Veo',
+    summary: 'Pollinations video generation using Veo',
     logo: undefined,
     tags: [],
     mainTag: 'pollinations',
@@ -224,7 +224,9 @@ export class VideoService {
 
   private resolvePollinationsVideoModel(model: string) {
     const mapping: Record<string, string> = {
-      'pollinations-veo-3.1': 'veo-3.1',
+      'pollinations-veo': 'veo',
+      // Legacy alias kept for backward compatibility.
+      'pollinations-veo-3.1': 'veo',
       'pollinations-seedance': 'seedance',
     }
     return mapping[model]
@@ -244,7 +246,7 @@ export class VideoService {
     const imageUrl = Array.isArray(request.image) ? request.image[0] : request.image
     const [width, height] = (request.size || '720x1280').split('x')
 
-    const url = new URL(`${config.ai.pollinations.videoBaseUrl}/prompt/${encodeURIComponent(prompt)}`)
+    const url = this.buildPollinationsMediaUrl(config.ai.pollinations.videoBaseUrl, prompt, 'video')
     url.searchParams.set('model', vendorModel)
     url.searchParams.set('width', width || '720')
     url.searchParams.set('height', height || '1280')
@@ -276,6 +278,19 @@ export class VideoService {
     })
 
     return createTaskResponse(aiLog.id, points)
+  }
+
+  private buildPollinationsMediaUrl(baseUrl: string, prompt: string, kind: 'image' | 'video') {
+    const trimmedBaseUrl = baseUrl.replace(/\/+$/, '')
+    const encodedPrompt = encodeURIComponent(prompt)
+
+    if (/(\/image|\/video|\/prompt)$/i.test(trimmedBaseUrl)) {
+      return new URL(`${trimmedBaseUrl}/${encodedPrompt}`)
+    }
+    if (trimmedBaseUrl.includes('gen.pollinations.ai')) {
+      return new URL(`${trimmedBaseUrl}/${kind}/${encodedPrompt}`)
+    }
+    return new URL(`${trimmedBaseUrl}/prompt/${encodedPrompt}`)
   }
 
   private async refreshPollinationsTaskStatus(aiLog: AiLog): Promise<AiLog> {

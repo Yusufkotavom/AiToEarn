@@ -162,9 +162,9 @@ Response (async, umumnya video):
 - Backend sudah support generate image Pollinations melalui mapping model:
   - `pollinations-flux` -> `flux`
   - `pollinations-gptimage` -> `gptimage`
-  - `pollinations-imagen` -> `imagen`
+  - `pollinations-zimage` -> `zimage` (legacy alias `pollinations-imagen` tetap diterima)
 - Backend sudah support generate video Pollinations melalui mapping model:
-  - `pollinations-veo-3.1` -> `veo-3.1`
+  - `pollinations-veo` -> `veo` (legacy alias `pollinations-veo-3.1` tetap diterima)
   - `pollinations-seedance` -> `seedance`
 - Konfigurasi env/config Pollinations sudah masuk (`imageBaseUrl`, `videoBaseUrl`, `appUrl`, `secretKey`, `publishableKey`).
 - MCP media tool sudah expose generate image/video Pollinations untuk skenario agent.

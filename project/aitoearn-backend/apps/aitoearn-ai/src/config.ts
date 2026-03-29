@@ -182,8 +182,8 @@ export const aiConfigSchema = z.object({
   grok: grokConfigSchema,
   aicso: aicsoConfigSchema,
   pollinations: z.object({
-    imageBaseUrl: z.string().default('https://image.pollinations.ai'),
-    videoBaseUrl: z.string().default('https://video.pollinations.ai'),
+    imageBaseUrl: z.string().default('https://gen.pollinations.ai/image'),
+    videoBaseUrl: z.string().default('https://gen.pollinations.ai/video'),
     appUrl: z.string().default('https://api.piiblog.net'),
     secretKey: z.string().default(''),
     publishableKey: z.string().default(''),

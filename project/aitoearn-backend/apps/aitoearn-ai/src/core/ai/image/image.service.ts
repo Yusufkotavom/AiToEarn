@@ -31,7 +31,9 @@ type Uploadable = File | Response
 const pollinationsImageModelMapping: Record<string, string> = {
   'pollinations-flux': 'flux',
   'pollinations-gptimage': 'gptimage',
-  'pollinations-imagen': 'imagen',
+  'pollinations-zimage': 'zimage',
+  // Legacy alias kept for backward compatibility.
+  'pollinations-imagen': 'zimage',
 }
 
 const pollinationsImageFallbackConfigs = [
@@ -60,9 +62,9 @@ const pollinationsImageFallbackConfigs = [
     pricing: '0',
   },
   {
-    name: 'pollinations-imagen',
-    description: 'Pollinations Imagen',
-    summary: 'Pollinations image generation via Imagen',
+    name: 'pollinations-zimage',
+    description: 'Pollinations Z-Image',
+    summary: 'Pollinations image generation via Z-Image',
     logo: undefined,
     tags: [],
     mainTag: 'pollinations',
@@ -202,7 +204,7 @@ export class ImageService {
     const count = request.n || 1
 
     const list = Array.from({ length: count }).map((_, index) => {
-      const url = new URL(`${imageBaseUrl}/prompt/${encodeURIComponent(request.prompt)}`)
+      const url = this.buildPollinationsMediaUrl(imageBaseUrl, request.prompt, 'image')
       url.searchParams.set('model', model)
       url.searchParams.set('width', width || '1024')
       url.searchParams.set('height', height || '1024')
@@ -218,6 +220,19 @@ export class ImageService {
     })
 
     return { created: Math.floor(Date.now() / 1000), list }
+  }
+
+  private buildPollinationsMediaUrl(baseUrl: string, prompt: string, kind: 'image' | 'video') {
+    const trimmedBaseUrl = baseUrl.replace(/\/+$/, '')
+    const encodedPrompt = encodeURIComponent(prompt)
+
+    if (/(\/image|\/video|\/prompt)$/i.test(trimmedBaseUrl)) {
+      return new URL(`${trimmedBaseUrl}/${encodedPrompt}`)
+    }
+    if (trimmedBaseUrl.includes('gen.pollinations.ai')) {
+      return new URL(`${trimmedBaseUrl}/${kind}/${encodedPrompt}`)
+    }
+    return new URL(`${trimmedBaseUrl}/prompt/${encodedPrompt}`)
   }
 
   /**

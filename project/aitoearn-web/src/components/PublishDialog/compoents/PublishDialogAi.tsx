@@ -117,11 +117,11 @@ interface Message {
 const pollinationsImageFallbackModels = [
   { name: 'pollinations-flux', description: 'Pollinations Flux' },
   { name: 'pollinations-gptimage', description: 'Pollinations GPT Image' },
-  { name: 'pollinations-imagen', description: 'Pollinations Imagen' },
+  { name: 'pollinations-zimage', description: 'Pollinations Z-Image' },
 ]
 
 const pollinationsVideoFallbackModels = [
-  { name: 'pollinations-veo-3.1', description: 'Pollinations Veo 3.1', resolutions: ['720x1280'], durations: [8] },
+  { name: 'pollinations-veo', description: 'Pollinations Veo', resolutions: ['720x1280'], durations: [8] },
   { name: 'pollinations-seedance', description: 'Pollinations Seedance', resolutions: ['720x1280'], durations: [8] },
 ]
 

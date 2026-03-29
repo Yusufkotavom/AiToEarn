@@ -652,7 +652,7 @@ describe('mediaMcp', () => {
       const tool = mediaMcp.createGenerateVideoWithPollinationsTool()
       const result = await tool.handler({
         prompt: 'A scenic sunset over ocean',
-        model: 'veo-3.1',
+        model: 'veo',
         width: 720,
         height: 1280,
       } as never, {})
@@ -660,7 +660,7 @@ describe('mediaMcp', () => {
       const resourceLink = result.content.find(c => c.type === 'resource_link')
       expect(resourceLink).toBeDefined()
       expect(resourceLink?.name).toContain('Pollinations video')
-      expect((resourceLink as { uri: string }).uri).toContain('video.pollinations.ai')
+      expect((resourceLink as { uri: string }).uri).toContain('/video/')
     })
   })
 })
