@@ -52,31 +52,31 @@ export class GoogleFlowBrowserService {
   }
 
   private extractUrl(payload: Record<string, unknown>): string | undefined {
-    const direct = payload.outputUrl || payload.url || payload.videoUrl || payload.imageUrl
+    const direct = payload['outputUrl'] || payload['url'] || payload['videoUrl'] || payload['imageUrl']
     if (typeof direct === 'string' && direct.length > 0) {
       return direct
     }
-    const data = payload.data as Record<string, unknown> | undefined
-    const result = payload.result as Record<string, unknown> | undefined
-    const nested = data?.url || data?.videoUrl || data?.imageUrl || result?.url || result?.videoUrl || result?.imageUrl
+    const data = payload['data'] as Record<string, unknown> | undefined
+    const result = payload['result'] as Record<string, unknown> | undefined
+    const nested = data?.['url'] || data?.['videoUrl'] || data?.['imageUrl'] || result?.['url'] || result?.['videoUrl'] || result?.['imageUrl']
     return typeof nested === 'string' && nested.length > 0 ? nested : undefined
   }
 
   private extractError(payload: Record<string, unknown>): string | undefined {
-    const direct = payload.error || payload.message
+    const direct = payload['error'] || payload['message']
     if (typeof direct === 'string' && direct.length > 0) {
       return direct
     }
-    const errorObj = payload.error as Record<string, unknown> | undefined
-    const nested = errorObj?.message
+    const errorObj = payload['error'] as Record<string, unknown> | undefined
+    const nested = errorObj?.['message']
     return typeof nested === 'string' && nested.length > 0 ? nested : undefined
   }
 
   private normalizeTaskResult(raw: unknown): GoogleFlowTaskResult {
     const payload = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {}
-    const taskIdValue = payload.taskId || payload.task_id || payload.id
+    const taskIdValue = payload['taskId'] || payload['task_id'] || payload['id']
     const taskId = typeof taskIdValue === 'string' && taskIdValue.length > 0 ? taskIdValue : undefined
-    const status = this.normalizeStatus(payload.status || payload.state)
+    const status = this.normalizeStatus(payload['status'] || payload['state'])
     const outputUrl = this.extractUrl(payload)
     const error = this.extractError(payload)
 
@@ -98,7 +98,7 @@ export class GoogleFlowBrowserService {
     const url = new URL(path, `${this.conf.baseUrl.replace(/\/+$/, '')}/`)
     const headers: Record<string, string> = {}
     if (this.conf.apiKey) {
-      headers.Authorization = `Bearer ${this.conf.apiKey}`
+      headers['Authorization'] = `Bearer ${this.conf.apiKey}`
     }
     if (method === 'POST') {
       headers['Content-Type'] = 'application/json'
@@ -123,8 +123,8 @@ export class GoogleFlowBrowserService {
     }
 
     if (!response.ok) {
-      const message = (typeof data === 'object' && data && 'message' in data && typeof (data as Record<string, unknown>).message === 'string')
-        ? (data as Record<string, unknown>).message as string
+      const message = (typeof data === 'object' && data && 'message' in data && typeof (data as Record<string, unknown>)['message'] === 'string')
+        ? (data as Record<string, unknown>)['message'] as string
         : `Google Flow browser request failed: HTTP ${response.status}`
       throw new AppException(ResponseCode.AiCallFailed, message)
     }
@@ -164,14 +164,14 @@ export class GoogleFlowBrowserService {
   async getLoginUrl(): Promise<GoogleFlowLoginInfo> {
     const response = await this.requestJson('GET', this.conf.loginUrlPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
-    const urlValue = payload.url
+    const urlValue = payload['url']
     if (typeof urlValue !== 'string' || urlValue.length === 0) {
       throw new AppException(ResponseCode.AiCallFailed, 'Google Flow worker did not return login URL')
     }
     return {
       url: urlValue,
-      requiresLogin: Boolean(payload.requiresLogin ?? true),
-      note: typeof payload.note === 'string' ? payload.note : undefined,
+      requiresLogin: Boolean(payload['requiresLogin'] ?? true),
+      note: typeof payload['note'] === 'string' ? payload['note'] : undefined,
       raw: response,
     }
   }
@@ -180,8 +180,8 @@ export class GoogleFlowBrowserService {
     const response = await this.requestJson('GET', this.conf.sessionStatusPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
     return {
-      loggedIn: Boolean(payload.loggedIn),
-      account: typeof payload.account === 'string' ? payload.account : undefined,
+      loggedIn: Boolean(payload['loggedIn']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
       raw: response,
     }
   }
@@ -190,8 +190,8 @@ export class GoogleFlowBrowserService {
     const response = await this.requestJson('POST', this.conf.reloginPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
     return {
-      loggedIn: Boolean(payload.loggedIn),
-      account: typeof payload.account === 'string' ? payload.account : undefined,
+      loggedIn: Boolean(payload['loggedIn']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
       raw: response,
     }
   }

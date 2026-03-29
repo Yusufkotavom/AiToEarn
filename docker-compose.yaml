@@ -103,6 +103,33 @@ services:
       exit 0;
       "
 
+  google-flow-playwright-worker:
+    image: aitoearn/google-flow-playwright-worker:local
+    build:
+      context: ./project/aitoearn-backend/apps/google-flow-playwright-worker
+      dockerfile: Dockerfile
+    container_name: google-flow-playwright-worker
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      PORT: ${GOOGLE_FLOW_WORKER_PORT:-4310}
+      GOOGLE_FLOW_WORKER_API_KEY: ${GOOGLE_FLOW_WORKER_API_KEY:-}
+      GOOGLE_FLOW_URL: ${GOOGLE_FLOW_URL:-https://labs.google/fx/tools/flow}
+      GOOGLE_FLOW_USER_DATA_DIR: ${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
+      GOOGLE_FLOW_HEADLESS: ${GOOGLE_FLOW_HEADLESS:-false}
+      GOOGLE_FLOW_ACTION_TIMEOUT_MS: ${GOOGLE_FLOW_ACTION_TIMEOUT_MS:-120000}
+      GOOGLE_FLOW_TASK_TTL_MS: ${GOOGLE_FLOW_TASK_TTL_MS:-86400000}
+    volumes:
+      - google-flow-user-data:${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
+    networks:
+      - aitoearn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${GOOGLE_FLOW_WORKER_PORT:-4310}/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   aitoearn-init:
     image: node:lts-alpine
     container_name: aitoearn-init
@@ -134,6 +161,8 @@ services:
       mongodb:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      google-flow-playwright-worker:
         condition: service_healthy
     volumes:
       - ./project/aitoearn-backend/apps/aitoearn-ai/config/config.js:/app/config.js:ro
@@ -172,6 +201,20 @@ services:
       GEMINI_KEY_PAIRS: ${GEMINI_KEY_PAIRS}
       GEMINI_LOCATION: ${GEMINI_LOCATION:-us-central1}
       AI_PROXY_URL: ${AI_PROXY_URL:-}
+      POLLINATIONS_IMAGE_BASE_URL: ${POLLINATIONS_IMAGE_BASE_URL:-https://gen.pollinations.ai/image}
+      POLLINATIONS_VIDEO_BASE_URL: ${POLLINATIONS_VIDEO_BASE_URL:-https://gen.pollinations.ai/video}
+      POLLINATIONS_APP_URL: ${POLLINATIONS_APP_URL:-https://api.piiblog.net}
+      POLLINATIONS_SECRET_KEY: ${POLLINATIONS_SECRET_KEY:-}
+      POLLINATIONS_PUBLISHABLE_KEY: ${POLLINATIONS_PUBLISHABLE_KEY:-}
+      GOOGLE_FLOW_BROWSER_BASE_URL: ${GOOGLE_FLOW_BROWSER_BASE_URL:-http://google-flow-playwright-worker:4310}
+      GOOGLE_FLOW_BROWSER_API_KEY: ${GOOGLE_FLOW_BROWSER_API_KEY:-}
+      GOOGLE_FLOW_BROWSER_TIMEOUT_MS: ${GOOGLE_FLOW_BROWSER_TIMEOUT_MS:-60000}
+      GOOGLE_FLOW_BROWSER_IMAGE_PATH: ${GOOGLE_FLOW_BROWSER_IMAGE_PATH:-/v1/image/generate}
+      GOOGLE_FLOW_BROWSER_VIDEO_PATH: ${GOOGLE_FLOW_BROWSER_VIDEO_PATH:-/v1/video/generate}
+      GOOGLE_FLOW_BROWSER_TASK_STATUS_PATH: ${GOOGLE_FLOW_BROWSER_TASK_STATUS_PATH:-/v1/tasks/{taskId}}
+      GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH: ${GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH:-/v1/auth/login-url}
+      GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH: ${GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH:-/v1/auth/session-status}
+      GOOGLE_FLOW_BROWSER_RELOGIN_PATH: ${GOOGLE_FLOW_BROWSER_RELOGIN_PATH:-/v1/auth/relogin}
 
     healthcheck:
       test:
@@ -334,4 +377,6 @@ volumes:
   rustfs-data:
     driver: local
   init-data:
+    driver: local
+  google-flow-user-data:
     driver: local
