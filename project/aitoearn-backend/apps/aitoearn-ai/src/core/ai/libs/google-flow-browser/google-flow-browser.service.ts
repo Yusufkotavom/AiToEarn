@@ -12,6 +12,19 @@ export interface GoogleFlowTaskResult {
   raw: unknown
 }
 
+export interface GoogleFlowLoginInfo {
+  url: string
+  requiresLogin?: boolean
+  note?: string
+  raw: unknown
+}
+
+export interface GoogleFlowSessionStatus {
+  loggedIn: boolean
+  account?: string
+  raw: unknown
+}
+
 @Injectable()
 export class GoogleFlowBrowserService {
   private get conf() {
@@ -146,5 +159,40 @@ export class GoogleFlowBrowserService {
   async getTaskStatus(taskId: string): Promise<GoogleFlowTaskResult> {
     const response = await this.requestJson('GET', this.buildTaskStatusPath(taskId))
     return this.normalizeTaskResult(response)
+  }
+
+  async getLoginUrl(): Promise<GoogleFlowLoginInfo> {
+    const response = await this.requestJson('GET', this.conf.loginUrlPath)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    const urlValue = payload.url
+    if (typeof urlValue !== 'string' || urlValue.length === 0) {
+      throw new AppException(ResponseCode.AiCallFailed, 'Google Flow worker did not return login URL')
+    }
+    return {
+      url: urlValue,
+      requiresLogin: Boolean(payload.requiresLogin ?? true),
+      note: typeof payload.note === 'string' ? payload.note : undefined,
+      raw: response,
+    }
+  }
+
+  async getSessionStatus(): Promise<GoogleFlowSessionStatus> {
+    const response = await this.requestJson('GET', this.conf.sessionStatusPath)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(payload.loggedIn),
+      account: typeof payload.account === 'string' ? payload.account : undefined,
+      raw: response,
+    }
+  }
+
+  async triggerRelogin(): Promise<GoogleFlowSessionStatus> {
+    const response = await this.requestJson('POST', this.conf.reloginPath)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(payload.loggedIn),
+      account: typeof payload.account === 'string' ? payload.account : undefined,
+      raw: response,
+    }
   }
 }

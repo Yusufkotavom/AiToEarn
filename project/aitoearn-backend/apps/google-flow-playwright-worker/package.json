@@ -1,0 +1,14 @@
+{
+  "name": "google-flow-playwright-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "playwright": "^1.57.0",
+    "uuid": "^11.1.0"
+  }
+}

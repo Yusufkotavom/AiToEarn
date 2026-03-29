@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { GoogleFlowBrowserService } from '../libs/google-flow-browser'
+import { GoogleFlowBrowserModule } from '../libs/google-flow-browser'
 import { ModelsConfigModule } from '../models-config'
 import { AicsoGrokVideoModule } from './aicso-grok'
 import { AicsoVeoVideoModule } from './aicso-veo'
@@ -14,6 +14,7 @@ import { VolcengineVideoModule } from './volcengine'
 @Module({
   imports: [
     ModelsConfigModule,
+    GoogleFlowBrowserModule,
     VolcengineVideoModule,
     OpenAIVideoModule,
     GeminiVideoModule,
@@ -22,7 +23,7 @@ import { VolcengineVideoModule } from './volcengine'
     AicsoGrokVideoModule,
   ],
   controllers: [VideoController],
-  providers: [VideoService, VideoTaskStatusScheduler, GoogleFlowBrowserService],
-  exports: [VideoService, VolcengineVideoModule, OpenAIVideoModule, GeminiVideoModule, GrokVideoModule, AicsoVeoVideoModule, AicsoGrokVideoModule, GoogleFlowBrowserService],
+  providers: [VideoService, VideoTaskStatusScheduler],
+  exports: [VideoService, VolcengineVideoModule, OpenAIVideoModule, GeminiVideoModule, GrokVideoModule, AicsoVeoVideoModule, AicsoGrokVideoModule],
 })
 export class VideoModule {}

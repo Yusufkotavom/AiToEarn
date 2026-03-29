@@ -40,6 +40,9 @@ const {
   GOOGLE_FLOW_BROWSER_IMAGE_PATH,
   GOOGLE_FLOW_BROWSER_VIDEO_PATH,
   GOOGLE_FLOW_BROWSER_TASK_STATUS_PATH,
+  GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH,
+  GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH,
+  GOOGLE_FLOW_BROWSER_RELOGIN_PATH,
 } = process.env
 
 const {
@@ -183,6 +186,9 @@ module.exports = {
       imageGeneratePath: GOOGLE_FLOW_BROWSER_IMAGE_PATH || '/v1/image/generate',
       videoGeneratePath: GOOGLE_FLOW_BROWSER_VIDEO_PATH || '/v1/video/generate',
       taskStatusPath: GOOGLE_FLOW_BROWSER_TASK_STATUS_PATH || '/v1/tasks/{taskId}',
+      loginUrlPath: GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH || '/v1/auth/login-url',
+      sessionStatusPath: GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH || '/v1/auth/session-status',
+      reloginPath: GOOGLE_FLOW_BROWSER_RELOGIN_PATH || '/v1/auth/relogin',
     },
     aideo: {
       vCreative: {
