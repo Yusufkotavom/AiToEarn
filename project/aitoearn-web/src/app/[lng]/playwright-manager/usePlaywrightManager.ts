@@ -3,7 +3,9 @@ import {
   createPlaywrightProfile,
   getPlaywrightProfileDebug,
   getPlaywrightProfileLoginStatus,
+  loginPlaywrightProfileWithCredentials,
   listPlaywrightProfiles,
+  openPlaywrightProfileLoginBrowser,
   resetPlaywrightProfileLogin,
   resumePlaywrightProfileLogin,
   startPlaywrightProfileLogin,
@@ -65,8 +67,14 @@ export function usePlaywrightManager() {
   const [startLoading, setStartLoading] = useState(false)
   const [resumeLoading, setResumeLoading] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+  const [openLoginLoading, setOpenLoginLoading] = useState(false)
   const [autoPolling, setAutoPolling] = useState(false)
   const [events, setEvents] = useState<PlaywrightDebugEvent[]>([])
+  const [credentialsModalOpen, setCredentialsModalOpen] = useState(false)
+  const [credentialsEmail, setCredentialsEmail] = useState('')
+  const [credentialsPassword, setCredentialsPassword] = useState('')
+  const [credentialsRemember, setCredentialsRemember] = useState(true)
+  const [credentialsSubmitting, setCredentialsSubmitting] = useState(false)
 
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollingDeadlineRef = useRef<number>(0)
@@ -138,6 +146,10 @@ export function usePlaywrightManager() {
       setLastCheckedAt(nowLabel())
       setDebugMessage(isLoggedIn ? 'Profile session authenticated.' : 'Profile session is not authenticated yet.')
       pushEvent(isLoggedIn ? 'success' : 'warn', `Status checked: ${profileStatus}`)
+      // Keep credentials modal user-driven only; status checks should not force-popup login form.
+      if (isLoggedIn) {
+        setCredentialsModalOpen(false)
+      }
 
       await loadProfiles()
       await loadDebug(selectedProfileId)
@@ -209,6 +221,7 @@ export function usePlaywrightManager() {
         label,
         provider: newProfileProvider || 'google-flow',
         capabilities: ['image', 'video'],
+        headless: true,
       })
       const createdId = String(res?.data?.profile?.id || '')
       setNewProfileLabel('')
@@ -259,6 +272,38 @@ export function usePlaywrightManager() {
       setStartLoading(false)
     }
   }, [selectedProfileId, loadProfiles, pushEvent, startAutoPolling])
+
+  const handleOpenLoginBrowser = useCallback(async () => {
+    if (!selectedProfileId) {
+      toast.error('Select profile first')
+      return
+    }
+
+    setOpenLoginLoading(true)
+    try {
+      const res: any = await openPlaywrightProfileLoginBrowser(selectedProfileId)
+      const nextUrl = res?.data?.loginUrl ? String(res.data.loginUrl) : ''
+      const nextProfile = res?.data?.profile
+      const nextStatus = String(nextProfile?.status || status || 'idle') as ProfileStatus
+      setLoginUrl(nextUrl)
+      setStatus(nextStatus)
+      if (nextUrl) {
+        window.open(nextUrl, '_blank', 'noopener,noreferrer')
+      }
+      pushEvent('info', 'Remote login browser opened.')
+      setDebugMessage('Remote login browser opened. Complete login there, then click Resume/Login Status.')
+      await loadProfiles()
+    }
+    catch (error: any) {
+      const message = error?.message || 'Failed to open remote login browser'
+      setDebugMessage(message)
+      pushEvent('error', message)
+      toast.error(message)
+    }
+    finally {
+      setOpenLoginLoading(false)
+    }
+  }, [selectedProfileId, status, loadProfiles, pushEvent])
 
   const handleResumeLogin = useCallback(async () => {
     if (!selectedProfileId) {
@@ -320,6 +365,68 @@ export function usePlaywrightManager() {
     }
   }, [selectedProfileId, loadProfiles, loadDebug, pushEvent])
 
+  const handleCredentialsLogin = useCallback(async () => {
+    if (!selectedProfileId) {
+      toast.error('Select profile first')
+      return
+    }
+    const email = credentialsEmail.trim()
+    const password = credentialsPassword
+    if (!email) {
+      toast.error('Email is required')
+      return
+    }
+    if (!password) {
+      toast.error('Password is required')
+      return
+    }
+
+    setCredentialsSubmitting(true)
+    try {
+      const res: any = await loginPlaywrightProfileWithCredentials(selectedProfileId, {
+        email,
+        password,
+        remember: credentialsRemember,
+      })
+
+      const isLoggedIn = Boolean(res?.data?.loggedIn)
+      const nextStatus = String(res?.data?.status || 'idle') as ProfileStatus
+      const nextAccount = res?.data?.account ? String(res.data.account) : ''
+      const authEmail = res?.data?.auth?.email ? String(res.data.auth.email) : email
+      const note = res?.data?.note ? String(res.data.note) : ''
+
+      setCredentialsEmail(authEmail)
+      setCredentialsPassword('')
+      setLoggedIn(isLoggedIn)
+      setStatus(nextStatus)
+      setAccount(nextAccount)
+      setDebugMessage(note || (isLoggedIn ? 'Credentials login succeeded.' : 'Credentials submitted. Challenge may still be required.'))
+      pushEvent(isLoggedIn ? 'success' : 'warn', isLoggedIn ? 'Credentials login authenticated.' : `Credentials login status: ${nextStatus}`)
+
+      await loadProfiles()
+      await loadDebug(selectedProfileId)
+
+      if (isLoggedIn) {
+        setCredentialsModalOpen(false)
+        toast.success('Playwright login success')
+      }
+      else {
+        setCredentialsModalOpen(true)
+        toast.info('Additional verification may be required, then click Resume Login')
+      }
+    }
+    catch (error: any) {
+      const message = error?.message || 'Failed to login with credentials'
+      setDebugMessage(message)
+      pushEvent('error', message)
+      toast.error(message)
+      setCredentialsModalOpen(true)
+    }
+    finally {
+      setCredentialsSubmitting(false)
+    }
+  }, [selectedProfileId, credentialsEmail, credentialsPassword, credentialsRemember, loadProfiles, loadDebug, pushEvent])
+
   const copyDebugReport = useCallback(async () => {
     const report = {
       selectedProfileId,
@@ -361,6 +468,7 @@ export function usePlaywrightManager() {
       setAccount('')
       setStatus('idle')
       setDebugMessage('No profile selected.')
+      setCredentialsModalOpen(false)
       return
     }
 
@@ -401,14 +509,27 @@ export function usePlaywrightManager() {
     startLoading,
     resumeLoading,
     resetLoading,
+    openLoginLoading,
     autoPolling,
     events,
 
     checkSession,
     stopAutoPolling,
     handleStartLogin,
+    handleOpenLoginBrowser,
     handleResumeLogin,
     handleResetLogin,
+    handleCredentialsLogin,
     copyDebugReport,
+
+    credentialsModalOpen,
+    setCredentialsModalOpen,
+    credentialsEmail,
+    setCredentialsEmail,
+    credentialsPassword,
+    setCredentialsPassword,
+    credentialsRemember,
+    setCredentialsRemember,
+    credentialsSubmitting,
   }
 }

@@ -26,6 +26,18 @@ export interface GoogleFlowSessionStatus {
   raw: unknown
 }
 
+export interface GoogleFlowCredentialsLoginResult extends GoogleFlowSessionStatus {
+  status?: PlaywrightProfileStatus
+  profile?: PlaywrightProfileSummary
+  note?: string
+}
+
+export interface PlaywrightProfileLoginOpenResult {
+  profile?: PlaywrightProfileSummary
+  loginUrl?: string
+  raw: unknown
+}
+
 export interface PlaywrightProfileSummary {
   id: string
   label: string
@@ -211,6 +223,9 @@ export class GoogleFlowBrowserService {
     prompt: string
     model: string
     size?: string
+    aspectRatio?: string
+    n?: number
+    flowModel?: string
     image?: string
     userId: string
     profileId: string
@@ -226,6 +241,7 @@ export class GoogleFlowBrowserService {
     duration?: number
     image?: string
     aspectRatio?: string
+    flowModel?: string
     userId: string
     profileId: string
   }): Promise<GoogleFlowTaskResult> {
@@ -307,6 +323,17 @@ export class GoogleFlowBrowserService {
     return this.normalizeProfile(payload['profile'] || response)
   }
 
+  async openProfileLoginBrowser(profileId: string): Promise<PlaywrightProfileLoginOpenResult> {
+    const path = this.buildPath(this.conf.loginOpenPath, { profileId })
+    const response = await this.requestJson('POST', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      profile: payload['profile'] ? this.normalizeProfile(payload['profile']) : undefined,
+      loginUrl: typeof payload['loginUrl'] === 'string' ? payload['loginUrl'] : undefined,
+      raw: response,
+    }
+  }
+
   async getProfileLoginStatus(profileId: string): Promise<GoogleFlowSessionStatus & { status?: PlaywrightProfileStatus, profile?: PlaywrightProfileSummary }> {
     const path = this.buildPath(this.conf.loginStatusPath, { profileId })
     const response = await this.requestJson('GET', path)
@@ -354,6 +381,23 @@ export class GoogleFlowBrowserService {
     return {
       profile: this.normalizeProfile(profileRaw),
       debug: (payload['debug'] && typeof payload['debug'] === 'object') ? payload['debug'] as PlaywrightProfileDebugInfo['debug'] : {},
+      raw: response,
+    }
+  }
+
+  async loginProfileWithCredentials(
+    profileId: string,
+    payload: { email: string, password: string },
+  ): Promise<GoogleFlowCredentialsLoginResult> {
+    const path = this.buildPath(this.conf.loginCredentialsPath, { profileId })
+    const response = await this.requestJson('POST', path, payload)
+    const data = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(data['loggedIn']),
+      account: typeof data['account'] === 'string' ? data['account'] : undefined,
+      status: this.normalizeProfileStatus(data['status']),
+      profile: data['profile'] ? this.normalizeProfile(data['profile']) : undefined,
+      note: typeof data['note'] === 'string' ? data['note'] : undefined,
       raw: response,
     }
   }

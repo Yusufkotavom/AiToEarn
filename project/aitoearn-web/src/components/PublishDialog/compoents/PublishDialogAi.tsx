@@ -33,6 +33,7 @@ import ReactMarkdown from 'react-markdown'
 import {
   aiChatStream,
   getPlaywrightProfileLoginStatus,
+  loginPlaywrightProfileWithCredentials,
   generateImage,
   generateVideo,
   getImageGenerationModels,
@@ -708,12 +709,32 @@ const PublishDialogAi = memo(
         if (!profileId) {
           throw new Error('Playwright profile is required')
         }
-        const res: any = await getPlaywrightProfileLoginStatus(profileId)
-        const loggedIn = Boolean(res?.data?.loggedIn)
-        if (!loggedIn) {
-          const status = String(res?.data?.status || 'unknown')
-          throw new Error(`Playwright profile not authenticated (${status}). Login first in Playwright Manager.`)
+        const getStatus = async () => {
+          const res: any = await getPlaywrightProfileLoginStatus(profileId)
+          return {
+            loggedIn: Boolean(res?.data?.loggedIn),
+            status: String(res?.data?.status || 'unknown'),
+          }
         }
+
+        let state = await getStatus()
+        if (state.loggedIn) {
+          return
+        }
+
+        // Auto re-login using saved credentials (remember=true) if session expired/challenge pending.
+        try {
+          await loginPlaywrightProfileWithCredentials(profileId, { remember: true })
+          state = await getStatus()
+          if (state.loggedIn) {
+            return
+          }
+        }
+        catch {
+          // ignore and continue with explicit error below
+        }
+
+        throw new Error(`Playwright profile not authenticated (${state.status}). Login first in Playwright Manager.`)
       }, [])
 
       // Handle video generation

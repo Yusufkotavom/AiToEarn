@@ -32,8 +32,12 @@ const {
 } = process.env
 
 const {
+  MAIL_HOST,
+  MAIL_PORT,
+  MAIL_SECURE,
   MAIL_USER,
   MAIL_PASS,
+  MAIL_FROM,
 } = process.env
 
 const {

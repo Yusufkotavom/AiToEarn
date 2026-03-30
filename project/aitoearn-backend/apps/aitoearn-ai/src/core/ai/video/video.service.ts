@@ -109,30 +109,63 @@ const pollinationsVideoFallbackModels: VideoGenerationModelConfig[] = [
   },
 ]
 
-const googleFlowBrowserVideoFallbackModel: VideoGenerationModelConfig = {
-  name: 'google-flow-browser-video',
-  description: 'Google Flow Video (Playwright)',
-  summary: 'Generate video via Google Flow browser session (Playwright)',
-  logo: undefined,
-  tags: [],
-  mainTag: 'google-flow-browser',
-  channel: AiLogChannel.GoogleFlowBrowser,
-  modes: ['text2video', 'image2video'],
-  resolutions: ['720x1280', '1280x720'],
-  durations: [8],
-  maxInputImages: 1,
-  aspectRatios: ['9:16', '16:9', '1:1'],
-  defaults: {
-    resolution: '720x1280',
-    aspectRatio: '9:16',
-    duration: 8,
-  },
-  pricing: [
-    {
+const googleFlowBrowserVideoFallbackModels: VideoGenerationModelConfig[] = [
+  {
+    name: 'google-flow-browser-video',
+    description: 'Google Flow Video - Nano Banana 2',
+    summary: 'Generate video via Google Flow browser session (Playwright)',
+    logo: undefined,
+    tags: [],
+    mainTag: 'google-flow-browser',
+    channel: AiLogChannel.GoogleFlowBrowser,
+    modes: ['text2video', 'image2video'],
+    resolutions: ['1280x720', '1024x768', '1024x1024', '768x1024', '720x1280'],
+    durations: [8],
+    maxInputImages: 1,
+    aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16'],
+    defaults: {
+      resolution: '1280x720',
+      aspectRatio: '16:9',
       duration: 8,
-      price: 0,
     },
-  ],
+    pricing: [
+      {
+        duration: 8,
+        price: 0,
+      },
+    ],
+  },
+  {
+    name: 'google-flow-browser-video-nano-banana-pro',
+    description: 'Google Flow Video - Nano Banana Pro',
+    summary: 'Generate video via Google Flow browser session (Playwright)',
+    logo: undefined,
+    tags: [],
+    mainTag: 'google-flow-browser',
+    channel: AiLogChannel.GoogleFlowBrowser,
+    modes: ['text2video', 'image2video'],
+    resolutions: ['1280x720', '1024x768', '1024x1024', '768x1024', '720x1280'],
+    durations: [8],
+    maxInputImages: 1,
+    aspectRatios: ['16:9', '4:3', '1:1', '3:4', '9:16'],
+    defaults: {
+      resolution: '1280x720',
+      aspectRatio: '16:9',
+      duration: 8,
+    },
+    pricing: [
+      {
+        duration: 8,
+        price: 0,
+      },
+    ],
+  },
+]
+
+const googleFlowVideoModelMapping: Record<string, string> = {
+  'google-flow-browser-video': '🍌 Nano Banana 2',
+  'google-flow-browser-video-nano-banana-2': '🍌 Nano Banana 2',
+  'google-flow-browser-video-nano-banana-pro': '🍌 Nano Banana Pro',
 }
 
 @Injectable()
@@ -221,7 +254,7 @@ export class VideoService {
 
     const modelConfig = this.modelsConfigService.config.video.generation.find(m => m.name === model)
       || pollinationsVideoFallbackModels.find(m => m.name === model)
-      || (googleFlowBrowserVideoFallbackModel.name === model ? googleFlowBrowserVideoFallbackModel : undefined)
+      || googleFlowBrowserVideoFallbackModels.find(m => m.name === model)
     if (!modelConfig) {
       throw new AppException(ResponseCode.InvalidModel)
     }
@@ -318,7 +351,7 @@ export class VideoService {
   ) {
     const { userId, userType, model, prompt, duration, profileId } = request
     if (!profileId) {
-      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-video')
+      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-video* models')
     }
     const points = await this.calculateVideoGenerationPrice({ model, userId, userType, duration })
     const imageUrl = Array.isArray(request.image) ? request.image[0] : request.image
@@ -333,6 +366,7 @@ export class VideoService {
       size: request.size || '720x1280',
       image: imageUrl,
       aspectRatio: request.metadata?.['aspectRatio'] as string | undefined,
+      flowModel: googleFlowVideoModelMapping[model],
     })
 
     const durationMs = Math.max(1, Date.now() - startedAt.getTime())
@@ -851,7 +885,7 @@ export class VideoService {
     const existingNames = new Set(existing.map(model => model.name))
     const fallback = [
       ...pollinationsVideoFallbackModels.filter(model => !existingNames.has(model.name)),
-      ...(existingNames.has(googleFlowBrowserVideoFallbackModel.name) ? [] : [googleFlowBrowserVideoFallbackModel]),
+      ...googleFlowBrowserVideoFallbackModels.filter(model => !existingNames.has(model.name)),
     ]
     return [...existing, ...fallback].map(model => ({
       ...model,

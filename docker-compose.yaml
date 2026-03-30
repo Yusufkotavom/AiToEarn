@@ -116,15 +116,65 @@ services:
       GOOGLE_FLOW_WORKER_API_KEY: ${GOOGLE_FLOW_WORKER_API_KEY:-}
       GOOGLE_FLOW_URL: ${GOOGLE_FLOW_URL:-https://labs.google/fx/tools/flow}
       GOOGLE_FLOW_USER_DATA_DIR: ${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
-      GOOGLE_FLOW_HEADLESS: ${GOOGLE_FLOW_HEADLESS:-false}
+      GOOGLE_FLOW_PROFILES_ROOT_DIR: ${GOOGLE_FLOW_PROFILES_ROOT_DIR:-/data/google-flow-user-data}
+      GOOGLE_FLOW_DEBUG_EXPORT_DIR: ${GOOGLE_FLOW_DEBUG_EXPORT_DIR:-/project/debug-snapshots}
+      GOOGLE_FLOW_HEADLESS: ${GOOGLE_FLOW_HEADLESS:-true}
       GOOGLE_FLOW_ACTION_TIMEOUT_MS: ${GOOGLE_FLOW_ACTION_TIMEOUT_MS:-120000}
       GOOGLE_FLOW_TASK_TTL_MS: ${GOOGLE_FLOW_TASK_TTL_MS:-86400000}
+      GOOGLE_FLOW_STEALTH_USER_AGENT: ${GOOGLE_FLOW_STEALTH_USER_AGENT:-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36}
+      GOOGLE_FLOW_STEALTH_LOCALE: ${GOOGLE_FLOW_STEALTH_LOCALE:-en-US}
+      GOOGLE_FLOW_STEALTH_TIMEZONE: ${GOOGLE_FLOW_STEALTH_TIMEZONE:-America/New_York}
+      GOOGLE_FLOW_STEALTH_PLATFORM: ${GOOGLE_FLOW_STEALTH_PLATFORM:-Win32}
+      GOOGLE_FLOW_STEALTH_VENDOR: ${GOOGLE_FLOW_STEALTH_VENDOR:-Google Inc.}
+      GOOGLE_FLOW_STEALTH_ACCEPT_LANGUAGE: ${GOOGLE_FLOW_STEALTH_ACCEPT_LANGUAGE:-en-US,en;q=0.9}
+      GOOGLE_FLOW_STEALTH_SEC_CH_UA: ${GOOGLE_FLOW_STEALTH_SEC_CH_UA:-"Not(A:Brand";v="99", "Google Chrome";v="123", "Chromium";v="123"}
+      GOOGLE_FLOW_STEALTH_SEC_CH_UA_PLATFORM: ${GOOGLE_FLOW_STEALTH_SEC_CH_UA_PLATFORM:-"Windows"}
+      GOOGLE_FLOW_STEALTH_SEC_CH_UA_MOBILE: ${GOOGLE_FLOW_STEALTH_SEC_CH_UA_MOBILE:-?0}
+      GOOGLE_FLOW_STEALTH_DNT: ${GOOGLE_FLOW_STEALTH_DNT:-1}
+      GOOGLE_FLOW_STEALTH_PLUGIN_ENABLED: ${GOOGLE_FLOW_STEALTH_PLUGIN_ENABLED:-true}
+      GOOGLE_FLOW_BROWSER_CHANNEL: ${GOOGLE_FLOW_BROWSER_CHANNEL:-chrome}
+      GOOGLE_FLOW_REMOTE_CDP_URL: ${GOOGLE_FLOW_REMOTE_CDP_URL:-http://google-flow-remote-browser:9223}
+      GOOGLE_FLOW_REMOTE_LOGIN_OPEN_URL: ${GOOGLE_FLOW_REMOTE_LOGIN_OPEN_URL:-http://google-flow-remote-browser:4320/v1/login/open}
+      GOOGLE_FLOW_REMOTE_LOGIN_PUBLIC_URL: ${GOOGLE_FLOW_REMOTE_LOGIN_PUBLIC_URL:-/flow-login/vnc.html?autoconnect=1&resize=scale}
+    volumes:
+      - google-flow-user-data:${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
+      - ./debug-snapshots:${GOOGLE_FLOW_DEBUG_EXPORT_DIR:-/project/debug-snapshots}
+    depends_on:
+      google-flow-remote-browser:
+        condition: service_healthy
+    networks:
+      - aitoearn-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${GOOGLE_FLOW_WORKER_PORT:-4310}/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  google-flow-remote-browser:
+    image: aitoearn/google-flow-remote-browser:local
+    build:
+      context: ./project/aitoearn-backend/apps/google-flow-remote-browser
+      dockerfile: Dockerfile
+    container_name: google-flow-remote-browser
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      PORT: ${GOOGLE_FLOW_REMOTE_BROWSER_PORT:-4320}
+      GOOGLE_FLOW_URL: ${GOOGLE_FLOW_URL:-https://labs.google/fx/tools/flow}
+      GOOGLE_FLOW_PROFILES_ROOT_DIR: ${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
+      GOOGLE_FLOW_REMOTE_LOGIN_PUBLIC_URL: ${GOOGLE_FLOW_REMOTE_LOGIN_PUBLIC_URL:-/flow-login/vnc.html?autoconnect=1&resize=scale}
+      DISPLAY: ${GOOGLE_FLOW_REMOTE_DISPLAY:-:99}
+      NOVNC_PORT: ${GOOGLE_FLOW_REMOTE_NOVNC_PORT:-6080}
+      CDP_PORT: ${GOOGLE_FLOW_REMOTE_CDP_PORT:-9222}
+      CDP_PROXY_PORT: ${GOOGLE_FLOW_REMOTE_CDP_PROXY_PORT:-9223}
+      VNC_PORT: ${GOOGLE_FLOW_REMOTE_VNC_PORT:-5900}
     volumes:
       - google-flow-user-data:${GOOGLE_FLOW_USER_DATA_DIR:-/data/google-flow-user-data}
     networks:
       - aitoearn-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${GOOGLE_FLOW_WORKER_PORT:-4310}/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${GOOGLE_FLOW_REMOTE_BROWSER_PORT:-4320}/health"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -215,6 +265,9 @@ services:
       GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH: ${GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH:-/v1/auth/login-url}
       GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH: ${GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH:-/v1/auth/session-status}
       GOOGLE_FLOW_BROWSER_RELOGIN_PATH: ${GOOGLE_FLOW_BROWSER_RELOGIN_PATH:-/v1/auth/relogin}
+      GOOGLE_FLOW_BROWSER_LOGIN_OPEN_PATH: ${GOOGLE_FLOW_BROWSER_LOGIN_OPEN_PATH:-/v1/profiles/{profileId}/login/open}
+      GOOGLE_FLOW_BROWSER_LOGIN_CREDENTIALS_PATH: ${GOOGLE_FLOW_BROWSER_LOGIN_CREDENTIALS_PATH:-/v1/profiles/{profileId}/login/credentials}
+      PLAYWRIGHT_CREDENTIALS_SECRET: ${PLAYWRIGHT_CREDENTIALS_SECRET:-}
 
     healthcheck:
       test:
@@ -263,7 +316,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-change-this-secret-token}
       ASSETS_CONFIG: ${SERVER_ASSETS_CONFIG}
-      MAIL_USER: ${MAIL_USER:-}
+      MAIL_HOST: ${MAIL_HOST:-smtp.resend.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_SECURE: ${MAIL_SECURE:-true}
+      MAIL_FROM: ${MAIL_FROM:-AiToEarn <noreply@yourdomain.com>}
+      MAIL_USER: ${MAIL_USER:-resend}
       MAIL_PASS: ${MAIL_PASS:-}
       BILIBILI_CLIENT_ID: ${BILIBILI_CLIENT_ID:-}
       BILIBILI_CLIENT_SECRET: ${BILIBILI_CLIENT_SECRET:-}

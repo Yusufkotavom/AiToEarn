@@ -37,6 +37,13 @@ const pollinationsImageModelMapping: Record<string, string> = {
   'pollinations-imagen': 'zimage',
 }
 
+const googleFlowImageModelMapping: Record<string, string> = {
+  'google-flow-browser-image': '🍌 Nano Banana 2',
+  'google-flow-browser-image-nano-banana-2': '🍌 Nano Banana 2',
+  'google-flow-browser-image-nano-banana-pro': '🍌 Nano Banana Pro',
+  'google-flow-browser-image-imagen-4': 'Imagen 4',
+}
+
 const pollinationsImageFallbackConfigs = [
   {
     name: 'pollinations-flux',
@@ -74,14 +81,41 @@ const pollinationsImageFallbackConfigs = [
     styles: ['natural'],
     pricing: '0',
   },
+]
+
+const googleFlowImageFallbackConfigs = [
   {
     name: 'google-flow-browser-image',
-    description: 'Google Flow (Playwright)',
+    description: 'Google Flow - Nano Banana 2',
     summary: 'Generate image via Google Flow browser session (Playwright)',
     logo: undefined,
     tags: [],
     mainTag: 'google-flow-browser',
-    sizes: ['1024x1024', '720x1280', '1280x720'],
+    sizes: ['1280x720', '1024x768', '1024x1024', '768x1024', '720x1280'],
+    qualities: ['standard'],
+    styles: ['natural'],
+    pricing: '0',
+  },
+  {
+    name: 'google-flow-browser-image-nano-banana-pro',
+    description: 'Google Flow - Nano Banana Pro',
+    summary: 'Generate image via Google Flow browser session (Playwright)',
+    logo: undefined,
+    tags: [],
+    mainTag: 'google-flow-browser',
+    sizes: ['1280x720', '1024x768', '1024x1024', '768x1024', '720x1280'],
+    qualities: ['standard'],
+    styles: ['natural'],
+    pricing: '0',
+  },
+  {
+    name: 'google-flow-browser-image-imagen-4',
+    description: 'Google Flow - Imagen 4',
+    summary: 'Generate image via Google Flow browser session (Playwright)',
+    logo: undefined,
+    tags: [],
+    mainTag: 'google-flow-browser',
+    sizes: ['1280x720', '1024x768', '1024x1024', '768x1024', '720x1280'],
     qualities: ['standard'],
     styles: ['natural'],
     pricing: '0',
@@ -93,6 +127,10 @@ export class ImageService {
   private readonly logger = new Logger(ImageService.name)
   private readonly googleFlowImageMaxWaitMs = 2 * 60 * 1000
   private readonly googleFlowImagePollIntervalMs = 3000
+
+  private isGoogleFlowBrowserImageModel(model: string): boolean {
+    return String(model || '').startsWith('google-flow-browser-image')
+  }
 
   constructor(
     private readonly assetsService: AssetsService,
@@ -175,7 +213,7 @@ export class ImageService {
       })
     }
 
-    if (params.model === 'google-flow-browser-image') {
+    if (this.isGoogleFlowBrowserImageModel(params.model)) {
       return this.googleFlowBrowserGeneration({
         ...params,
         user,
@@ -193,7 +231,7 @@ export class ImageService {
 
     for (const image of result.data || []) {
       if (image.url) {
-        image.url = await this.uploadImageToS3(image.url, user, `ai/images/${request.model}`)
+        image.url = await this.uploadImageToS3(image.url, user, request.model)
       }
       if (image.b64_json) {
         const mimeType = `image/${result.output_format || 'png'}`
@@ -201,7 +239,7 @@ export class ImageService {
         const uploadResult = await this.assetsService.uploadFromBuffer(user, buffer, {
           type: AssetType.AiImage,
           mimeType,
-        }, `ai/images/${request.model}`)
+        }, request.model)
         image.url = uploadResult.asset.path
         delete image.b64_json
       }
@@ -214,7 +252,7 @@ export class ImageService {
   }
 
   /**
-   * Pollinations 图片生成（返回直链）
+   * Pollinations 图片生成（先拿外链，再持久化到内部存储）
    */
   private async pollinationsGeneration(request: ImageGenerationDto): Promise<{ created: number, list: Array<{ url: string }> }> {
     const model = pollinationsImageModelMapping[request.model]
@@ -226,7 +264,7 @@ export class ImageService {
     const imageBaseUrl = config.ai.pollinations.imageBaseUrl
     const count = request.n || 1
 
-    const list = Array.from({ length: count }).map((_, index) => {
+    const generated = Array.from({ length: count }).map((_, index) => {
       const url = this.buildPollinationsMediaUrl(imageBaseUrl, request.prompt, 'image')
       url.searchParams.set('model', model)
       url.searchParams.set('width', width || '1024')
@@ -241,6 +279,12 @@ export class ImageService {
       }
       return { url: url.toString() }
     })
+
+    const list: Array<{ url: string }> = []
+    for (const item of generated) {
+      const uploaded = await this.uploadImageToS3(item.url, request.user || '', request.model)
+      list.push({ url: uploaded })
+    }
 
     return { created: Math.floor(Date.now() / 1000), list }
   }
@@ -275,12 +319,35 @@ export class ImageService {
     throw new AppException(ResponseCode.AiCallFailed, `Google Flow image generation timeout after ${Math.round(this.googleFlowImageMaxWaitMs / 1000)}s`)
   }
 
+  private sizeToAspectRatio(size?: string): string | undefined {
+    const value = String(size || '').trim()
+    if (!value) {
+      return undefined
+    }
+    const direct = value.match(/^(\d{1,2}):(\d{1,2})$/)
+    if (direct) {
+      return `${Number.parseInt(direct[1], 10)}:${Number.parseInt(direct[2], 10)}`
+    }
+    const match = value.match(/^(\d+)\s*x\s*(\d+)$/i)
+    if (!match) {
+      return undefined
+    }
+    const width = Number.parseInt(match[1], 10)
+    const height = Number.parseInt(match[2], 10)
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return undefined
+    }
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+    const d = gcd(width, height)
+    return `${Math.round(width / d)}:${Math.round(height / d)}`
+  }
+
   /**
    * Google Flow browser 图片生成（通过内部 Playwright worker）
    */
   private async googleFlowBrowserGeneration(request: ImageGenerationDto): Promise<{ created: number, list: Array<{ url: string }> }> {
     if (!request.profileId) {
-      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-image')
+      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-image* models')
     }
 
     const [width, height] = (request.size || '1024x1024').split('x')
@@ -289,30 +356,31 @@ export class ImageService {
     const created = Math.floor(Date.now() / 1000)
     const list: Array<{ url: string }> = []
 
-    for (let i = 0; i < count; i++) {
-      const result = await this.googleFlowBrowserService.createImageTask({
-        userId: request.user || '',
-        profileId: request.profileId,
-        prompt: request.prompt,
-        model: request.model,
-        size,
-      })
+    const result = await this.googleFlowBrowserService.createImageTask({
+      userId: request.user || '',
+      profileId: request.profileId,
+      prompt: request.prompt,
+      model: request.model,
+      size,
+      aspectRatio: this.sizeToAspectRatio(size),
+      n: count,
+      flowModel: googleFlowImageModelMapping[request.model],
+    })
 
-      if (result.status === 'failed') {
-        throw new AppException(ResponseCode.AiCallFailed, result.error || 'Google Flow image generation failed')
-      }
-
-      let imageUrl = result.outputUrl
-      if (!imageUrl && result.taskId) {
-        imageUrl = await this.waitForGoogleFlowImage(result.taskId)
-      }
-      if (!imageUrl) {
-        throw new AppException(ResponseCode.AiCallFailed, 'Google Flow image generation returned no image URL')
-      }
-
-      const uploaded = await this.uploadImageToS3(imageUrl, request.user || '', `ai/images/${request.model}`)
-      list.push({ url: uploaded })
+    if (result.status === 'failed') {
+      throw new AppException(ResponseCode.AiCallFailed, result.error || 'Google Flow image generation failed')
     }
+
+    let imageUrl = result.outputUrl
+    if (!imageUrl && result.taskId) {
+      imageUrl = await this.waitForGoogleFlowImage(result.taskId)
+    }
+    if (!imageUrl) {
+      throw new AppException(ResponseCode.AiCallFailed, 'Google Flow image generation returned no image URL')
+    }
+
+    const uploaded = await this.uploadImageToS3(imageUrl, request.user || '', request.model)
+    list.push({ url: uploaded })
 
     return { created, list }
   }
@@ -347,7 +415,7 @@ export class ImageService {
 
     for (const image of imageResult.data || []) {
       if (image.url) {
-        image.url = await this.uploadImageToS3(image.url, user!, `ai/images/${request.model}`)
+        image.url = await this.uploadImageToS3(image.url, user!, request.model)
       }
       if (image.b64_json) {
         const mimeType = 'image/png'
@@ -355,7 +423,7 @@ export class ImageService {
         const uploadResult = await this.assetsService.uploadFromBuffer(user!, buffer, {
           type: AssetType.AiImage,
           mimeType,
-        }, `ai/images/${request.model}`)
+        }, request.model)
         image.url = uploadResult.asset.path
         delete image.b64_json
       }
@@ -386,7 +454,7 @@ export class ImageService {
       const uploadResult = await this.assetsService.uploadFromBuffer(userId, image.imageData, {
         type: AssetType.AiImage,
         mimeType: image.mimeType,
-      }, `ai/images/${model}`)
+      }, model)
       images.push({ url: uploadResult.asset.path, data: image.imageData.toString('base64'), mimeType: image.mimeType })
     }
 
@@ -533,7 +601,7 @@ export class ImageService {
     if (model in pollinationsImageModelMapping) {
       return AiLogChannel.Pollinations
     }
-    if (model === 'google-flow-browser-image') {
+    if (this.isGoogleFlowBrowserImageModel(model)) {
       return AiLogChannel.GoogleFlowBrowser
     }
     return AiLogChannel.NewApi
@@ -645,7 +713,10 @@ export class ImageService {
   async generationModelConfig(_data: ImageGenerationModelsQueryDto) {
     const existing = this.modelsConfigService.config.image.generation
     const existingNames = new Set(existing.map(model => model.name))
-    const fallback = pollinationsImageFallbackConfigs.filter(model => !existingNames.has(model.name))
+    const fallback = [
+      ...pollinationsImageFallbackConfigs,
+      ...googleFlowImageFallbackConfigs,
+    ].filter(model => !existingNames.has(model.name))
     return [...existing, ...fallback]
   }
 
@@ -832,7 +903,7 @@ export class ImageService {
     const uploadResult = await this.assetsService.uploadFromBuffer(userId, composited, {
       type: AssetType.AiImage,
       mimeType: 'image/png',
-    }, `ai/images/qrcode-art/${request.model}`)
+    }, `qrcode-art/${request.model}`)
 
     return { imageUrl: uploadResult.asset.path }
   }

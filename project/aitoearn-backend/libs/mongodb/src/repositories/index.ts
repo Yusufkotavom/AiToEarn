@@ -15,6 +15,7 @@ import { MediaGroupRepository } from './media-group.repository'
 import { MediaRepository } from './media.repository'
 import { NotificationRepository } from './notification.repository'
 import { PointsRecordRepository } from './points-record.repository'
+import { PlaywrightProfileAuthRepository } from './playwright-profile-auth.repository'
 import { PublishRecordRepository } from './publish-record.repository'
 import { QrCodeArtImageRepository } from './qr-code-art-image.repository'
 import { ScheduleRuleRepository } from './schedule-rule.repository'
@@ -40,6 +41,7 @@ export * from './media.repository'
 export * from './notification.repository'
 export * from './oauth2-credential.repository'
 export * from './points-record.repository'
+export * from './playwright-profile-auth.repository'
 export * from './publish-record.repository'
 export * from './qr-code-art-image.repository'
 export * from './schedule-rule.repository'
@@ -69,4 +71,5 @@ export const repositories = [
   ContentGenerationTaskRepository,
   UserNotificationControlRepository,
   QrCodeArtImageRepository,
+  PlaywrightProfileAuthRepository,
 ] as const

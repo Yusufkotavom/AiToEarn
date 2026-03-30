@@ -2,11 +2,15 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { GetToken, TokenInfo } from '@yikart/aitoearn-auth'
 import { GoogleFlowBrowserService } from '../libs/google-flow-browser'
+import { PlaywrightAuthService } from './playwright-auth.service'
 
 @ApiTags('Me/Ai/Playwright')
 @Controller('ai/playwright')
 export class PlaywrightController {
-  constructor(private readonly googleFlowBrowserService: GoogleFlowBrowserService) {}
+  constructor(
+    private readonly googleFlowBrowserService: GoogleFlowBrowserService,
+    private readonly playwrightAuthService: PlaywrightAuthService,
+  ) {}
 
   @Get('/profiles')
   async listProfiles(@GetToken() _token: TokenInfo) {
@@ -47,6 +51,15 @@ export class PlaywrightController {
     return { profile }
   }
 
+  @Post('/profiles/:profileId/login/open')
+  async openLoginBrowser(@GetToken() _token: TokenInfo, @Param('profileId') profileId: string) {
+    const result = await this.googleFlowBrowserService.openProfileLoginBrowser(profileId)
+    return {
+      profile: result.profile,
+      loginUrl: result.loginUrl,
+    }
+  }
+
   @Get('/profiles/:profileId/login/status')
   async loginStatus(@GetToken() _token: TokenInfo, @Param('profileId') profileId: string) {
     const status = await this.googleFlowBrowserService.getProfileLoginStatus(profileId)
@@ -78,6 +91,19 @@ export class PlaywrightController {
       status: status.status,
       profile: status.profile,
     }
+  }
+
+  @Post('/profiles/:profileId/login/credentials')
+  async loginWithCredentials(
+    @GetToken() _token: TokenInfo,
+    @Param('profileId') profileId: string,
+    @Body() body: {
+      email?: string
+      password?: string
+      remember?: boolean
+    },
+  ) {
+    return await this.playwrightAuthService.loginWithCredentials(profileId, body)
   }
 
   @Get('/profiles/:profileId/debug')

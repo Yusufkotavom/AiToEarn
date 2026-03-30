@@ -78,8 +78,8 @@ export class DraftGenerationController {
     response: DraftGenerationPricingVo,
   })
   @Get('/pricing')
-  getPricing(): DraftGenerationPricingVo {
-    const pricing = this.draftGenerationService.getDraftGenerationPricing()
+  async getPricing(): Promise<DraftGenerationPricingVo> {
+    const pricing = await this.draftGenerationService.getDraftGenerationPricing()
     return DraftGenerationPricingVo.create(pricing)
   }
 

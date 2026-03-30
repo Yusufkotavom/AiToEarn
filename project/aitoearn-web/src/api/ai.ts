@@ -127,6 +127,10 @@ export function startPlaywrightProfileLogin(profileId: string) {
   return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/start`)
 }
 
+export function openPlaywrightProfileLoginBrowser(profileId: string) {
+  return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/open`)
+}
+
 export function getPlaywrightProfileLoginStatus(profileId: string) {
   return http.get(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/status`)
 }
@@ -137,6 +141,17 @@ export function resumePlaywrightProfileLogin(profileId: string) {
 
 export function resetPlaywrightProfileLogin(profileId: string) {
   return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/reset`)
+}
+
+export function loginPlaywrightProfileWithCredentials(
+  profileId: string,
+  data: {
+    email?: string
+    password?: string
+    remember?: boolean
+  },
+) {
+  return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/credentials`, data)
 }
 
 export function getPlaywrightProfileDebug(profileId: string) {

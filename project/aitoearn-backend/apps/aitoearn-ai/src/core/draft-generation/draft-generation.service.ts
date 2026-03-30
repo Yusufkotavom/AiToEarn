@@ -31,12 +31,14 @@ import { VideoUtilsMcp } from '../agent/mcp/video-utils.mcp'
 import { ImageService } from '../ai/image/image.service'
 import { calculatePricingPoints, ChatPricing } from '../ai/pricing/pricing-calculator'
 import { VideoService } from '../ai/video/video.service'
+import { GoogleFlowBrowserService } from '../ai/libs/google-flow-browser'
 import { getCompatibleAccountTypes } from '../material-adaptation/material-adaptation.constants'
 import { DRAFT_GENERATION_SYSTEM_PROMPT } from './draft-generation.constants'
 import {
   CreateDraftGenerationV2Dto,
   CreateImageTextDraftDto,
   DraftType,
+  IMAGE_TEXT_ASPECT_RATIOS,
   ImageTextDraftType,
   ListDraftGenerationTasksDto,
   QueryDraftGenerationTasksDto,
@@ -87,6 +89,10 @@ interface RunningGenerationTask {
 export class DraftGenerationService implements OnModuleDestroy {
   private readonly logger = new Logger(DraftGenerationService.name)
   private readonly runningGenerations = new Map<string, RunningGenerationTask>()
+  private readonly geminiDraftImageModels = new Set([
+    'gemini-3.1-flash-image-preview',
+    'gemini-3-pro-image-preview',
+  ])
 
   constructor(
     private readonly materialGroupRepository: MaterialGroupRepository,
@@ -103,6 +109,7 @@ export class DraftGenerationService implements OnModuleDestroy {
     private readonly videoMetadataService: VideoMetadataService,
     private readonly imageService: ImageService,
     private readonly mediaRepository: MediaRepository,
+    private readonly googleFlowBrowserService: GoogleFlowBrowserService,
   ) { }
 
   /** 优雅关机：等待所有正在运行的生成任务完成后再销毁模块 */
@@ -699,11 +706,56 @@ Return the result as JSON.`
 
   // ==================== 图文草稿生成 ====================
 
-  getDraftGenerationPricing(): DraftGenerationPricingVoInput {
-    const imageModels = config.ai.draftGeneration.imageModels
+  async getDraftGenerationPricing(): Promise<DraftGenerationPricingVoInput> {
+    const imageModels = [...config.ai.draftGeneration.imageModels]
+    const existingImageModels = new Set(imageModels.map(model => model.model))
 
-    const videoModels = config.ai.models.video.generation
-      .filter(v => v.channel === AiLogChannel.Grok || v.channel === AiLogChannel.AicsoVeo || v.channel === AiLogChannel.AicsoGrok)
+    const generationImageModels = await this.imageService.generationModelConfig({
+      userId: undefined,
+      userType: UserType.User,
+    })
+
+    for (const model of generationImageModels) {
+      if (existingImageModels.has(model.name)) {
+        continue
+      }
+
+      const derivedAspectRatios = (model.sizes || [])
+        .map((size) => {
+          const [w, h] = String(size).split('x').map(Number)
+          if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+            return null
+          }
+          const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+          const d = gcd(Math.round(w), Math.round(h)) || 1
+          return `${Math.round(w / d)}:${Math.round(h / d)}`
+        })
+        .filter((v): v is string => Boolean(v))
+
+      const supportedAspectRatios = Array.from(
+        new Set([
+          ...IMAGE_TEXT_ASPECT_RATIOS,
+          ...derivedAspectRatios,
+        ]),
+      )
+
+      imageModels.push({
+        model: model.name,
+        displayName: model.description || model.name,
+        supportedAspectRatios,
+        maxInputImages: String(model.name || '').startsWith('google-flow-browser-image') ? 1 : 14,
+        pricing: (model.sizes || ['1024x1024']).map(size => ({
+          resolution: String(size),
+          pricePerImage: Number(model.pricing || 0),
+        })),
+      })
+      existingImageModels.add(model.name)
+    }
+
+    const videoModels = await this.videoService.getVideoGenerationModelParams({
+      userId: undefined,
+      userType: UserType.User,
+    })
 
     return { imageModels, videoModels }
   }
@@ -1053,7 +1105,100 @@ Return the result as JSON.`
     aspectRatio?: string,
     imageSize?: string,
   ): Promise<{ urls: string[], points: number }> {
-    return this.generateImagesWithGemini(userId, userType, imageModel, imagePrompts, referenceImageUrls, aspectRatio, imageSize)
+    if (this.geminiDraftImageModels.has(imageModel)) {
+      return this.generateImagesWithGemini(userId, userType, imageModel, imagePrompts, referenceImageUrls, aspectRatio, imageSize)
+    }
+
+    if (String(imageModel || '').startsWith('google-flow-browser-image')) {
+      const profileId = await this.resolveAuthenticatedFlowProfileId('image')
+      if (!profileId) {
+        throw new AppException(
+          ResponseCode.AiCallFailed,
+          'google-flow-browser-image* requires authenticated Playwright profile. Please login first in Playwright Manager.',
+        )
+      }
+      return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize, profileId)
+    }
+
+    return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize)
+  }
+
+  private async generateImagesWithGeneralModel(
+    userId: string,
+    userType: UserType,
+    model: string,
+    imagePrompts: string[],
+    imageSize?: string,
+    profileId?: string,
+  ): Promise<{ urls: string[], points: number }> {
+    const urls: string[] = []
+    let totalPoints = 0
+
+    for (const [index, prompt] of imagePrompts.entries()) {
+      this.logger.log(
+        { model, promptIndex: index, promptLength: prompt.length, imageSize },
+        'ImageText: Generating image with general image API',
+      )
+
+      const result = await retry(
+        () => this.imageService.userGeneration({
+          userId,
+          userType,
+          model,
+          prompt,
+          n: 1,
+          ...(profileId ? { profileId } : {}),
+          ...(imageSize ? { size: imageSize } : {}),
+        }),
+        {
+          maxRetries: 3,
+          delayMs: 1000,
+          onRetry: (error, attempt) => {
+            this.logger.warn(
+              { model, promptIndex: index, attempt, error: error.message },
+              'ImageText: General image generation failed, retrying',
+            )
+          },
+        },
+      )
+
+      const generated = Array.isArray((result as { list?: Array<{ url?: string }> })?.list)
+        ? (result as { list?: Array<{ url?: string }> }).list || []
+        : []
+      const firstUrl = generated.find(item => item?.url)?.url
+      if (!firstUrl) {
+        throw new Error(`ImageText: Empty image result for model ${model}`)
+      }
+      urls.push(firstUrl)
+      totalPoints += Number((result as { usage?: { points?: number } })?.usage?.points || 0)
+    }
+
+    return { urls, points: totalPoints }
+  }
+
+  private async resolveAuthenticatedFlowProfileId(capability: 'image' | 'video'): Promise<string | null> {
+    try {
+      const profiles = await this.googleFlowBrowserService.listProfiles()
+      const matched = profiles
+        .filter(profile =>
+          profile.status === 'authenticated'
+          && Array.isArray(profile.capabilities)
+          && profile.capabilities.includes(capability),
+        )
+        .sort((a, b) => {
+          const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+          const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+          return bTime - aTime
+        })
+      return matched[0]?.id || null
+    }
+    catch (error) {
+      this.logger.warn(
+        { error: getErrorMessage(error) },
+        'ImageText: failed to resolve authenticated Playwright profile',
+      )
+      return null
+    }
   }
 
   /**

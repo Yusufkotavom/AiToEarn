@@ -26,6 +26,7 @@ import {
   PointsRecord,
   PointsRecordSchema,
 } from './points-record.schema'
+import { PlaywrightProfileAuth, PlaywrightProfileAuthSchema } from './playwright-profile-auth.schema'
 import { PublishDayInfo, PublishDayInfoSchema } from './publish-day-info.schema'
 import { PublishInfo, PublishInfoSchema } from './publish-info.schema'
 import { PublishRecord, PublishRecordSchema } from './publish-record.schema'
@@ -61,6 +62,7 @@ export * from './media.schema'
 export * from './notification.schema'
 export * from './oauth2-credential.schema'
 export * from './points-record.schema'
+export * from './playwright-profile-auth.schema'
 export * from './publish-day-info.schema'
 export * from './publish-info.schema'
 export * from './publish-record.schema'
@@ -96,6 +98,7 @@ export const schemas = [
   { name: UserNotificationControl.name, schema: UserNotificationControlSchema },
   { name: Asset.name, schema: AssetSchema },
   { name: QrCodeArtImage.name, schema: QrCodeArtImageSchema },
+  { name: PlaywrightProfileAuth.name, schema: PlaywrightProfileAuthSchema },
   { name: ScheduleRule.name, schema: ScheduleRuleSchema },
   { name: EngagementTask.name, schema: EngagementTaskSchema },
   { name: EngagementSubTask.name, schema: EngagementSubTaskSchema },
