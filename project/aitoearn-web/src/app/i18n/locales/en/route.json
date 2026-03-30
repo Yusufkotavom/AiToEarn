@@ -23,5 +23,6 @@
   "myTasks": "My Tasks",
   "createTask": "Create Task",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright Manager"
 }

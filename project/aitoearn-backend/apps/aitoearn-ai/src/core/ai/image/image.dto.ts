@@ -10,6 +10,7 @@ const imageGenerationSchema = z.object({
   response_format: z.enum(['url', 'b64_json']).optional().describe('返回格式'),
   size: z.string().optional().describe('图片尺寸'),
   style: z.string().optional().describe('图片风格'),
+  profileId: z.string().optional().describe('Playwright profile ID (required for google-flow-browser models)'),
   user: z.string().optional().describe('用户标识符'),
 })
 

@@ -279,6 +279,10 @@ export class ImageService {
    * Google Flow browser 图片生成（通过内部 Playwright worker）
    */
   private async googleFlowBrowserGeneration(request: ImageGenerationDto): Promise<{ created: number, list: Array<{ url: string }> }> {
+    if (!request.profileId) {
+      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-image')
+    }
+
     const [width, height] = (request.size || '1024x1024').split('x')
     const size = `${width || '1024'}x${height || '1024'}`
     const count = request.n || 1
@@ -288,6 +292,7 @@ export class ImageService {
     for (let i = 0; i < count; i++) {
       const result = await this.googleFlowBrowserService.createImageTask({
         userId: request.user || '',
+        profileId: request.profileId,
         prompt: request.prompt,
         model: request.model,
         size,

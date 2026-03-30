@@ -19,5 +19,6 @@
   "uptime": "Status",
   "taskSquare": "Goldrausch-Markt",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright Manager"
 }

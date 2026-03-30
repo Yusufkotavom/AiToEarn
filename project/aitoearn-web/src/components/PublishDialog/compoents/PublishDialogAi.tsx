@@ -32,10 +32,12 @@ import {
 import ReactMarkdown from 'react-markdown'
 import {
   aiChatStream,
+  getPlaywrightProfileLoginStatus,
   generateImage,
   generateVideo,
   getImageGenerationModels,
   getImageTaskStatus,
+  listPlaywrightProfiles,
   getVideoGenerationModels,
   getVideoTaskStatus,
 } from '@/api/ai'
@@ -114,28 +116,10 @@ interface Message {
   action?: AIAction
 }
 
-const pollinationsImageFallbackModels = [
-  { name: 'pollinations-flux', description: 'Pollinations Flux' },
-  { name: 'pollinations-gptimage', description: 'Pollinations GPT Image' },
-  { name: 'pollinations-zimage', description: 'Pollinations Z-Image' },
-  { name: 'google-flow-browser-image', description: 'Google Flow (Playwright)' },
-]
-
-const pollinationsVideoFallbackModels = [
-  { name: 'pollinations-veo', description: 'Pollinations Veo', resolutions: ['720x1280'], durations: [8] },
-  { name: 'pollinations-seedance', description: 'Pollinations Seedance', resolutions: ['720x1280'], durations: [8] },
-  { name: 'google-flow-browser-video', description: 'Google Flow Video (Playwright)', resolutions: ['720x1280'], durations: [8] },
-]
-
-function mergeFallbackModels<T extends { name: string }>(models: T[], fallback: T[]) {
-  const existing = new Set(models.map(model => model.name))
-  const merged = [...models]
-  for (const model of fallback) {
-    if (!existing.has(model.name)) {
-      merged.push(model)
-    }
-  }
-  return merged
+interface PlaywrightProfileOption {
+  id: string
+  label: string
+  status: string
 }
 
 // Message item component - use memo to avoid unnecessary re-renders
@@ -376,6 +360,13 @@ const PublishDialogAi = memo(
         return savedModel || 'gemini-2.5-flash-image'
       })
       const [imageModels, setImageModels] = useState<any[]>([])
+      const [selectedImageSize, setSelectedImageSize] = useState(() => localStorage.getItem('ai_image_size') || '')
+      const [selectedImageQuality, setSelectedImageQuality] = useState(() => localStorage.getItem('ai_image_quality') || '')
+      const [selectedImageStyle, setSelectedImageStyle] = useState(() => localStorage.getItem('ai_image_style') || '')
+      const [selectedImageCount, setSelectedImageCount] = useState(() => {
+        const saved = Number(localStorage.getItem('ai_image_count') || 1)
+        return Number.isFinite(saved) && saved > 0 ? saved : 1
+      })
 
       // Video generation state
       const [videoModels, setVideoModels] = useState<any[]>([])
@@ -385,10 +376,19 @@ const PublishDialogAi = memo(
         const savedModel = localStorage.getItem('ai_video_model')
         return savedModel || ''
       })
+      const [selectedVideoResolution, setSelectedVideoResolution] = useState(() => localStorage.getItem('ai_video_resolution') || '')
+      const [selectedVideoDuration, setSelectedVideoDuration] = useState(() => {
+        const saved = Number(localStorage.getItem('ai_video_duration') || 0)
+        return Number.isFinite(saved) ? saved : 0
+      })
+      const [selectedVideoAspectRatio, setSelectedVideoAspectRatio] = useState(() => localStorage.getItem('ai_video_aspect_ratio') || '')
       const [videoTaskId, setVideoTaskId] = useState<string | null>(null)
       const [videoStatus, setVideoStatus] = useState<string>('')
       const [videoProgress, setVideoProgress] = useState(0)
       const [videoResult, setVideoResult] = useState<string | null>(null)
+      const [playwrightProfiles, setPlaywrightProfiles] = useState<PlaywrightProfileOption[]>([])
+      const [selectedImageProfileId, setSelectedImageProfileId] = useState(() => localStorage.getItem('ai_image_playwright_profile_id') || '')
+      const [selectedVideoProfileId, setSelectedVideoProfileId] = useState(() => localStorage.getItem('ai_video_playwright_profile_id') || '')
 
       // Image to image state
       const [uploadedImage, setUploadedImage] = useState<{
@@ -434,31 +434,64 @@ const PublishDialogAi = memo(
         const fetchImageModels = async () => {
           try {
             const res: any = await getImageGenerationModels()
-            if (res.data && Array.isArray(res.data)) {
-              const mergedModels = mergeFallbackModels(res.data, pollinationsImageFallbackModels)
-              setImageModels(mergedModels)
-
-              const savedModel = localStorage.getItem('ai_image_model')
-              const currentModelExists = mergedModels.find((m: any) => m.name === selectedImageModel)
-              if (currentModelExists) {
-                return
-              }
-              if (savedModel && mergedModels.find((m: any) => m.name === savedModel)) {
-                setSelectedImageModel(savedModel)
-                return
-              }
-              if (mergedModels.length > 0) {
-                setSelectedImageModel(mergedModels[0].name)
-                localStorage.setItem('ai_image_model', mergedModels[0].name)
-              }
+            if (!Array.isArray(res?.data)) {
+              throw new Error('Invalid image model response')
             }
+
+            const models = res.data
+            setImageModels(models)
+
+            if (!models.length) {
+              setSelectedImageModel('')
+              localStorage.removeItem('ai_image_model')
+              toast.error('No image models available')
+              return
+            }
+
+            const savedModel = localStorage.getItem('ai_image_model')
+            const currentModelExists = models.find((m: any) => m.name === selectedImageModel)
+            if (currentModelExists) {
+              return
+            }
+            if (savedModel && models.find((m: any) => m.name === savedModel)) {
+              setSelectedImageModel(savedModel)
+              return
+            }
+            setSelectedImageModel(models[0].name)
+            localStorage.setItem('ai_image_model', models[0].name)
           }
-          catch (error) {
+          catch (error: any) {
             console.error('Failed to fetch image models:', error)
+            setImageModels([])
+            setSelectedImageModel('')
+            localStorage.removeItem('ai_image_model')
+            toast.error(error?.message || 'Failed to load image models')
           }
         }
         fetchImageModels()
-      }, [selectedImageModel])
+      }, [])
+
+      useEffect(() => {
+        const model = imageModels.find((m: any) => m.name === selectedImageModel)
+        if (!model) {
+          return
+        }
+
+        const sizes = Array.isArray(model.sizes) ? model.sizes : []
+        const qualities = Array.isArray(model.qualities) ? model.qualities : []
+        const styles = Array.isArray(model.styles) ? model.styles : []
+
+        const nextSize = sizes.includes(selectedImageSize) ? selectedImageSize : (sizes[0] || '')
+        const nextQuality = qualities.includes(selectedImageQuality) ? selectedImageQuality : (qualities[0] || '')
+        const nextStyle = styles.includes(selectedImageStyle) ? selectedImageStyle : (styles[0] || '')
+
+        setSelectedImageSize(nextSize)
+        setSelectedImageQuality(nextQuality)
+        setSelectedImageStyle(nextStyle)
+        localStorage.setItem('ai_image_size', nextSize)
+        localStorage.setItem('ai_image_quality', nextQuality)
+        localStorage.setItem('ai_image_style', nextStyle)
+      }, [imageModels, selectedImageModel, selectedImageSize, selectedImageQuality, selectedImageStyle])
 
       // Initialize video models
       useEffect(() => {
@@ -466,32 +499,43 @@ const PublishDialogAi = memo(
           try {
             videoModelsLoadingRef.current = true
             const res: any = await getVideoGenerationModels()
-            if (res.data && Array.isArray(res.data)) {
-              const mergedModels = mergeFallbackModels(res.data, pollinationsVideoFallbackModels)
-              setVideoModels(mergedModels)
+            if (!Array.isArray(res?.data)) {
+              throw new Error('Invalid video model response')
+            }
 
-              // Read saved model from localStorage
-              const savedModel = localStorage.getItem('ai_video_model')
+            const models = res.data
+            setVideoModels(models)
 
-              // Check if current model exists in list
-              const currentModelExists = mergedModels.find((m: any) => m.name === selectedVideoModel)
+            // Read saved model from localStorage
+            const savedModel = localStorage.getItem('ai_video_model')
 
-              if (currentModelExists) {
-                // Current model is valid, no update needed
-              }
-              else if (savedModel && mergedModels.find((m: any) => m.name === savedModel)) {
-                // Use saved model if it exists in list
-                setSelectedVideoModel(savedModel)
-              }
-              else if (mergedModels.length > 0) {
-                // Use first available model
-                setSelectedVideoModel(mergedModels[0].name)
-                localStorage.setItem('ai_video_model', mergedModels[0].name)
-              }
+            // Check if current model exists in list
+            const currentModelExists = models.find((m: any) => m.name === selectedVideoModel)
+
+            if (currentModelExists) {
+              // Current model is valid, no update needed
+            }
+            else if (savedModel && models.find((m: any) => m.name === savedModel)) {
+              // Use saved model if it exists in list
+              setSelectedVideoModel(savedModel)
+            }
+            else if (models.length > 0) {
+              // Use first available model
+              setSelectedVideoModel(models[0].name)
+              localStorage.setItem('ai_video_model', models[0].name)
+            }
+            else {
+              setSelectedVideoModel('')
+              localStorage.removeItem('ai_video_model')
+              toast.error('No video models available')
             }
           }
-          catch (error) {
+          catch (error: any) {
             console.error('Failed to fetch video models:', error)
+            setVideoModels([])
+            setSelectedVideoModel('')
+            localStorage.removeItem('ai_video_model')
+            toast.error(error?.message || 'Failed to load video models')
           }
           finally {
             videoModelsLoadingRef.current = false
@@ -500,6 +544,81 @@ const PublishDialogAi = memo(
 
         fetchVideoModels()
       }, []) // Only execute once on component mount
+
+      useEffect(() => {
+        const fetchPlaywrightProfiles = async () => {
+          try {
+            const res: any = await listPlaywrightProfiles()
+            const list = Array.isArray(res?.data?.profiles) ? res.data.profiles : []
+            const normalized = list
+              .map((item: any) => ({
+                id: String(item?.id || ''),
+                label: String(item?.label || item?.id || ''),
+                status: String(item?.status || 'idle'),
+              }))
+              .filter((item: PlaywrightProfileOption) => item.id)
+            setPlaywrightProfiles(normalized)
+
+            if (!normalized.length) {
+              setSelectedImageProfileId('')
+              setSelectedVideoProfileId('')
+              localStorage.removeItem('ai_image_playwright_profile_id')
+              localStorage.removeItem('ai_video_playwright_profile_id')
+              return
+            }
+
+            if (!normalized.find((p: PlaywrightProfileOption) => p.id === selectedImageProfileId)) {
+              const imageId = normalized[0].id
+              setSelectedImageProfileId(imageId)
+              localStorage.setItem('ai_image_playwright_profile_id', imageId)
+            }
+
+            if (!normalized.find((p: PlaywrightProfileOption) => p.id === selectedVideoProfileId)) {
+              const videoId = normalized[0].id
+              setSelectedVideoProfileId(videoId)
+              localStorage.setItem('ai_video_playwright_profile_id', videoId)
+            }
+          }
+          catch (error: any) {
+            console.error('Failed to load Playwright profiles:', error)
+            setPlaywrightProfiles([])
+          }
+        }
+
+        void fetchPlaywrightProfiles()
+      }, [])
+
+      useEffect(() => {
+        const model = videoModels.find((m: any) => m.name === selectedVideoModel)
+        if (!model) {
+          return
+        }
+
+        const resolutions = Array.isArray(model.resolutions) ? model.resolutions : []
+        const durations = Array.isArray(model.durations) ? model.durations : []
+        const aspectRatios = Array.isArray(model.aspectRatios) ? model.aspectRatios : []
+
+        const defaultResolution = model?.defaults?.resolution || resolutions[0] || ''
+        const defaultDuration = model?.defaults?.duration || durations[0] || 0
+        const defaultAspectRatio = model?.defaults?.aspectRatio || aspectRatios[0] || ''
+
+        const nextResolution = resolutions.includes(selectedVideoResolution)
+          ? selectedVideoResolution
+          : defaultResolution
+        const nextDuration = durations.includes(selectedVideoDuration)
+          ? selectedVideoDuration
+          : defaultDuration
+        const nextAspectRatio = aspectRatios.includes(selectedVideoAspectRatio)
+          ? selectedVideoAspectRatio
+          : defaultAspectRatio
+
+        setSelectedVideoResolution(nextResolution)
+        setSelectedVideoDuration(nextDuration)
+        setSelectedVideoAspectRatio(nextAspectRatio)
+        localStorage.setItem('ai_video_resolution', String(nextResolution))
+        localStorage.setItem('ai_video_duration', String(nextDuration))
+        localStorage.setItem('ai_video_aspect_ratio', String(nextAspectRatio))
+      }, [videoModels, selectedVideoModel, selectedVideoResolution, selectedVideoDuration, selectedVideoAspectRatio])
 
       // Poll video task status
       const pollVideoTaskStatus = useCallback(async (taskId: string) => {
@@ -585,6 +704,18 @@ const PublishDialogAi = memo(
         poll()
       }, [])
 
+      const ensurePlaywrightProfileReady = useCallback(async (profileId: string) => {
+        if (!profileId) {
+          throw new Error('Playwright profile is required')
+        }
+        const res: any = await getPlaywrightProfileLoginStatus(profileId)
+        const loggedIn = Boolean(res?.data?.loggedIn)
+        if (!loggedIn) {
+          const status = String(res?.data?.status || 'unknown')
+          throw new Error(`Playwright profile not authenticated (${status}). Login first in Playwright Manager.`)
+        }
+      }, [])
+
       // Handle video generation
       const handleVideoGeneration = useCallback(
         async (prompt: string) => {
@@ -644,20 +775,31 @@ const PublishDialogAi = memo(
             }
             setMessages(prev => [...prev, placeholderMsg])
 
-            // Get first available resolution and duration
-            let duration = 5
-            let size = '720p'
+            const duration = selectedVideoDuration || selectedModel?.durations?.[0] || 5
+            const size = selectedVideoResolution || selectedModel?.resolutions?.[0] || '720p'
+            const isPlaywrightVideo = String(selectedVideoModel).startsWith('google-flow-browser-')
 
-            if (selectedModel?.durations?.length > 0)
-              duration = selectedModel.durations[0]
-            if (selectedModel?.resolutions?.length > 0)
-              size = selectedModel.resolutions[0]
+            if (isPlaywrightVideo) {
+              if (!selectedVideoProfileId) {
+                throw new Error('Select Playwright profile for video model first')
+              }
+              await ensurePlaywrightProfileReady(selectedVideoProfileId)
+            }
 
             const data: any = {
               model: selectedVideoModel,
               prompt,
               duration,
               size,
+            }
+            if (isPlaywrightVideo) {
+              data.profileId = selectedVideoProfileId
+            }
+            if (selectedVideoAspectRatio) {
+              data.metadata = {
+                ...(data.metadata || {}),
+                aspectRatio: selectedVideoAspectRatio,
+              }
             }
 
             const res: any = await generateVideo(data)
@@ -681,7 +823,7 @@ const PublishDialogAi = memo(
             setIsProcessing(false)
           }
         },
-        [selectedVideoModel, videoModels, pollVideoTaskStatus, t],
+        [selectedVideoModel, selectedVideoDuration, selectedVideoResolution, selectedVideoAspectRatio, selectedVideoProfileId, videoModels, pollVideoTaskStatus, ensurePlaywrightProfileReady, t],
       )
 
       // Poll image task status
@@ -754,14 +896,27 @@ const PublishDialogAi = memo(
           setMessages(prev => [...prev, placeholderMsg])
 
           const selectedModel = imageModels.find((m: any) => m.name === selectedImageModel)
-          const size = selectedModel?.sizes?.[0] || '1024x1024'
+          const size = selectedImageSize || selectedModel?.sizes?.[0] || '1024x1024'
+          const quality = selectedImageQuality || selectedModel?.qualities?.[0]
+          const style = selectedImageStyle || selectedModel?.styles?.[0]
+          const isPlaywrightImage = String(selectedImageModel).startsWith('google-flow-browser-')
+
+          if (isPlaywrightImage) {
+            if (!selectedImageProfileId) {
+              throw new Error('Select Playwright profile for image model first')
+            }
+            await ensurePlaywrightProfileReady(selectedImageProfileId)
+          }
 
           const res: any = await generateImage({
             model: selectedImageModel,
             prompt,
-            n: 1,
+            n: selectedImageCount,
             size,
+            quality,
+            style,
             response_format: 'url',
+            profileId: isPlaywrightImage ? selectedImageProfileId : undefined,
           })
 
           const logId = res?.data?.logId
@@ -776,7 +931,7 @@ const PublishDialogAi = memo(
           toast.error(error.message || 'Image generation failed')
           setIsProcessing(false)
         }
-      }, [selectedImageModel, imageModels, pollImageTaskStatus, t])
+      }, [selectedImageModel, selectedImageSize, selectedImageQuality, selectedImageStyle, selectedImageCount, selectedImageProfileId, imageModels, pollImageTaskStatus, ensurePlaywrightProfileReady, t])
 
       // Handle AI response
       const handleAIResponse = useCallback(
@@ -1653,6 +1808,25 @@ const PublishDialogAi = memo(
               </Select>
             </div>
 
+            <div className="mb-4 border rounded-md p-3 text-sm">
+              <div className="font-bold mb-1">Playwright Management</div>
+              <div className="text-xs text-muted-foreground mb-2">
+                Google Flow Playwright login/debug has been moved to a separate page.
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const seg = window.location.pathname.split('/').filter(Boolean)
+                  const lng = seg[0] || 'en'
+                  window.open(`/${lng}/playwright-manager`, '_blank', 'noopener,noreferrer')
+                }}
+                className="cursor-pointer"
+              >
+                Open Playwright Manager
+              </Button>
+            </div>
+
             {/* Image generation model selection */}
             <div className="mb-4">
               <div className="mb-2 font-bold flex items-center">
@@ -1683,6 +1857,136 @@ const PublishDialogAi = memo(
                   ))}
                 </SelectContent>
               </Select>
+              {selectedImageModel
+                && (() => {
+                  const model = imageModels.find((m: any) => m.name === selectedImageModel)
+                  if (!model)
+                    return null
+                  const sizes = Array.isArray(model.sizes) ? model.sizes : []
+                  const qualities = Array.isArray(model.qualities) ? model.qualities : []
+                  const styles = Array.isArray(model.styles) ? model.styles : []
+                  return (
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <div className="mb-1 text-xs text-muted-foreground">Image Size</div>
+                        <Select
+                          value={selectedImageSize}
+                          onValueChange={(value) => {
+                            setSelectedImageSize(value)
+                            localStorage.setItem('ai_image_size', value)
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select image size" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sizes.map((size: string) => (
+                              <SelectItem key={size} value={size}>{size}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-xs text-muted-foreground">Image Count</div>
+                        <Select
+                          value={String(selectedImageCount)}
+                          onValueChange={(value) => {
+                            const parsed = Number(value)
+                            setSelectedImageCount(parsed)
+                            localStorage.setItem('ai_image_count', String(parsed))
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select image count" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['1', '2', '3', '4'].map((count) => (
+                              <SelectItem key={count} value={count}>{count}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {qualities.length > 0 && (
+                        <div>
+                          <div className="mb-1 text-xs text-muted-foreground">Image Quality</div>
+                          <Select
+                            value={selectedImageQuality}
+                            onValueChange={(value) => {
+                              setSelectedImageQuality(value)
+                              localStorage.setItem('ai_image_quality', value)
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select image quality" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {qualities.map((quality: string) => (
+                                <SelectItem key={quality} value={quality}>{quality}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {styles.length > 0 && (
+                        <div>
+                          <div className="mb-1 text-xs text-muted-foreground">Image Style</div>
+                          <Select
+                            value={selectedImageStyle}
+                            onValueChange={(value) => {
+                              setSelectedImageStyle(value)
+                              localStorage.setItem('ai_image_style', value)
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select image style" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {styles.map((style: string) => (
+                                <SelectItem key={style} value={style}>{style}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {String(model?.name || '').startsWith('google-flow-browser-') && (
+                        <div className="md:col-span-2">
+                          <div className="mb-1 text-xs text-muted-foreground">Playwright Profile (Image)</div>
+                          <Select
+                            value={selectedImageProfileId}
+                            onValueChange={(value) => {
+                              setSelectedImageProfileId(value)
+                              localStorage.setItem('ai_image_playwright_profile_id', value)
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select Playwright profile" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {playwrightProfiles.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.label}
+                                  {' '}
+                                  (
+                                  {item.id}
+                                  )
+                                  {' '}
+                                  -
+                                  {' '}
+                                  {item.status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {!playwrightProfiles.length && (
+                            <div className="mt-1 text-amber-600 text-xs">
+                              No Playwright profiles found. Create profile in Playwright Manager page.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
             </div>
 
             {/* Video generation model selection */}
@@ -1721,30 +2025,129 @@ const PublishDialogAi = memo(
                   if (!model)
                     return null
 
-                  let duration = 5
-                  let size = '720p'
-
-                  if (model?.durations?.length > 0)
-                    duration = model.durations[0]
-                  if (model?.resolutions?.length > 0)
-                    size = model.resolutions[0]
+                  const duration = selectedVideoDuration || model?.durations?.[0] || 5
+                  const size = selectedVideoResolution || model?.resolutions?.[0] || '720p'
+                  const aspectRatios = Array.isArray(model.aspectRatios) ? model.aspectRatios : []
 
                   return (
-                    <div className="mt-2 p-2 bg-muted rounded text-xs text-muted-foreground">
-                      <div>
-                        {t('aiFeatures.defaultDuration' as any)}
-                        :
-                        {duration}
-                        {t('aiFeatures.seconds' as any)}
+                    <div className="mt-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <div className="mb-1 text-xs text-muted-foreground">Video Resolution</div>
+                          <Select
+                            value={selectedVideoResolution}
+                            onValueChange={(value) => {
+                              setSelectedVideoResolution(value)
+                              localStorage.setItem('ai_video_resolution', value)
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select video resolution" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(model.resolutions || []).map((item: string) => (
+                                <SelectItem key={item} value={item}>{item}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <div className="mb-1 text-xs text-muted-foreground">Video Duration</div>
+                          <Select
+                            value={String(selectedVideoDuration || '')}
+                            onValueChange={(value) => {
+                              const parsed = Number(value)
+                              setSelectedVideoDuration(parsed)
+                              localStorage.setItem('ai_video_duration', String(parsed))
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select video duration" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(model.durations || []).map((item: number) => (
+                                <SelectItem key={String(item)} value={String(item)}>
+                                  {item}
+                                  {t('aiFeatures.seconds' as any)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {aspectRatios.length > 0 && (
+                          <div className="md:col-span-2">
+                            <div className="mb-1 text-xs text-muted-foreground">Video Aspect Ratio</div>
+                            <Select
+                              value={selectedVideoAspectRatio}
+                              onValueChange={(value) => {
+                                setSelectedVideoAspectRatio(value)
+                                localStorage.setItem('ai_video_aspect_ratio', value)
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select aspect ratio" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {aspectRatios.map((item: string) => (
+                                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        {t('aiFeatures.defaultResolution' as any)}
-                        :
-                        {size}
+                      <div className="mt-2 p-2 bg-muted rounded text-xs text-muted-foreground">
+                        <div>
+                          {t('aiFeatures.defaultDuration' as any)}
+                          :
+                          {duration}
+                          {t('aiFeatures.seconds' as any)}
+                        </div>
+                        <div>
+                          {t('aiFeatures.defaultResolution' as any)}
+                          :
+                          {size}
+                        </div>
                       </div>
                       {String(model?.name || '').startsWith('google-flow-browser-') && (
                         <div className="mt-1 text-amber-600">
                           Uses Google Flow via Playwright browser session on server (relay channel).
+                        </div>
+                      )}
+                      {String(model?.name || '').startsWith('google-flow-browser-') && (
+                        <div className="mt-3">
+                          <div className="mb-1 text-xs text-muted-foreground">Playwright Profile (Video)</div>
+                          <Select
+                            value={selectedVideoProfileId}
+                            onValueChange={(value) => {
+                              setSelectedVideoProfileId(value)
+                              localStorage.setItem('ai_video_playwright_profile_id', value)
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select Playwright profile" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {playwrightProfiles.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.label}
+                                  {' '}
+                                  (
+                                  {item.id}
+                                  )
+                                  {' '}
+                                  -
+                                  {' '}
+                                  {item.status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {!playwrightProfiles.length && (
+                            <div className="mt-1 text-amber-600 text-xs">
+                              No Playwright profiles found. Create profile in Playwright Manager page.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

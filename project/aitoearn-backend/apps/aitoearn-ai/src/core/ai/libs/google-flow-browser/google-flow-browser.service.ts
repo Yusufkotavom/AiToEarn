@@ -3,6 +3,7 @@ import { AppException, ResponseCode } from '@yikart/common'
 import { config } from '../../../../config'
 
 export type GoogleFlowTaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed'
+export type PlaywrightProfileStatus = 'idle' | 'starting' | 'awaiting_challenge' | 'authenticated' | 'expired' | 'failed'
 
 export interface GoogleFlowTaskResult {
   taskId?: string
@@ -22,6 +23,32 @@ export interface GoogleFlowLoginInfo {
 export interface GoogleFlowSessionStatus {
   loggedIn: boolean
   account?: string
+  raw: unknown
+}
+
+export interface PlaywrightProfileSummary {
+  id: string
+  label: string
+  provider: string
+  capabilities: string[]
+  headless?: boolean
+  status: PlaywrightProfileStatus
+  account?: string
+  loginUrl?: string
+  createdAt?: string
+  updatedAt?: string
+  raw?: unknown
+}
+
+export interface PlaywrightProfileDebugInfo {
+  profile: PlaywrightProfileSummary
+  debug: {
+    lastStep?: string
+    lastError?: string
+    lastUrl?: string
+    lastSnapshotPath?: string
+    events?: Array<Record<string, unknown>>
+  }
   raw: unknown
 }
 
@@ -49,6 +76,26 @@ export class GoogleFlowBrowserService {
       return 'processing'
     }
     return 'queued'
+  }
+
+  private normalizeProfileStatus(value: unknown): PlaywrightProfileStatus {
+    const status = String(value || '').toLowerCase()
+    if (status === 'authenticated') {
+      return 'authenticated'
+    }
+    if (status === 'awaiting_challenge') {
+      return 'awaiting_challenge'
+    }
+    if (status === 'starting') {
+      return 'starting'
+    }
+    if (status === 'expired') {
+      return 'expired'
+    }
+    if (status === 'failed') {
+      return 'failed'
+    }
+    return 'idle'
   }
 
   private extractUrl(payload: Record<string, unknown>): string | undefined {
@@ -80,9 +127,29 @@ export class GoogleFlowBrowserService {
     const outputUrl = this.extractUrl(payload)
     const error = this.extractError(payload)
 
-    // If backend returns URL directly without status, treat as succeeded.
     const finalStatus = outputUrl && status === 'queued' ? 'succeeded' : status
     return { taskId, status: finalStatus, outputUrl, error, raw }
+  }
+
+  private normalizeProfile(raw: unknown): PlaywrightProfileSummary {
+    const payload = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {}
+    const id = typeof payload['id'] === 'string' ? payload['id'] : ''
+    if (!id) {
+      throw new AppException(ResponseCode.AiCallFailed, 'Playwright profile id is missing')
+    }
+    return {
+      id,
+      label: typeof payload['label'] === 'string' ? payload['label'] : id,
+      provider: typeof payload['provider'] === 'string' ? payload['provider'] : 'google-flow',
+      capabilities: Array.isArray(payload['capabilities']) ? payload['capabilities'].map(v => String(v)) : [],
+      headless: typeof payload['headless'] === 'boolean' ? payload['headless'] : undefined,
+      status: this.normalizeProfileStatus(payload['status']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
+      loginUrl: typeof payload['loginUrl'] === 'string' ? payload['loginUrl'] : undefined,
+      createdAt: typeof payload['createdAt'] === 'string' ? payload['createdAt'] : undefined,
+      updatedAt: typeof payload['updatedAt'] === 'string' ? payload['updatedAt'] : undefined,
+      raw,
+    }
   }
 
   private buildTaskStatusPath(taskId: string): string {
@@ -91,6 +158,14 @@ export class GoogleFlowBrowserService {
       return template.replace('{taskId}', encodeURIComponent(taskId))
     }
     return `${template.replace(/\/+$/, '')}/${encodeURIComponent(taskId)}`
+  }
+
+  private buildPath(template: string, params: Record<string, string>): string {
+    let path = template
+    for (const [k, v] of Object.entries(params)) {
+      path = path.replace(new RegExp(`\\{${k}\\}`, 'g'), encodeURIComponent(v))
+    }
+    return path
   }
 
   private async requestJson(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>): Promise<unknown> {
@@ -138,6 +213,7 @@ export class GoogleFlowBrowserService {
     size?: string
     image?: string
     userId: string
+    profileId: string
   }): Promise<GoogleFlowTaskResult> {
     const response = await this.requestJson('POST', this.conf.imageGeneratePath, params)
     return this.normalizeTaskResult(response)
@@ -151,6 +227,7 @@ export class GoogleFlowBrowserService {
     image?: string
     aspectRatio?: string
     userId: string
+    profileId: string
   }): Promise<GoogleFlowTaskResult> {
     const response = await this.requestJson('POST', this.conf.videoGeneratePath, params)
     return this.normalizeTaskResult(response)
@@ -161,6 +238,7 @@ export class GoogleFlowBrowserService {
     return this.normalizeTaskResult(response)
   }
 
+  // Legacy compatibility
   async getLoginUrl(): Promise<GoogleFlowLoginInfo> {
     const response = await this.requestJson('GET', this.conf.loginUrlPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
@@ -176,6 +254,7 @@ export class GoogleFlowBrowserService {
     }
   }
 
+  // Legacy compatibility
   async getSessionStatus(): Promise<GoogleFlowSessionStatus> {
     const response = await this.requestJson('GET', this.conf.sessionStatusPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
@@ -186,12 +265,95 @@ export class GoogleFlowBrowserService {
     }
   }
 
+  // Legacy compatibility
   async triggerRelogin(): Promise<GoogleFlowSessionStatus> {
     const response = await this.requestJson('POST', this.conf.reloginPath)
     const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
     return {
       loggedIn: Boolean(payload['loggedIn']),
       account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
+      raw: response,
+    }
+  }
+
+  async listProfiles(): Promise<PlaywrightProfileSummary[]> {
+    const response = await this.requestJson('GET', this.conf.profilesPath)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    const list = Array.isArray(payload['profiles']) ? payload['profiles'] : []
+    return list.map(item => this.normalizeProfile(item))
+  }
+
+  async createProfile(params: {
+    id?: string
+    label: string
+    provider?: string
+    capabilities: string[]
+    headless?: boolean
+  }): Promise<PlaywrightProfileSummary> {
+    const response = await this.requestJson('POST', this.conf.profilesPath, params)
+    return this.normalizeProfile(response)
+  }
+
+  async getProfile(profileId: string): Promise<PlaywrightProfileSummary> {
+    const path = this.buildPath(this.conf.profileByIdPath, { profileId })
+    const response = await this.requestJson('GET', path)
+    return this.normalizeProfile(response)
+  }
+
+  async startProfileLogin(profileId: string): Promise<PlaywrightProfileSummary> {
+    const path = this.buildPath(this.conf.loginStartPath, { profileId })
+    const response = await this.requestJson('POST', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return this.normalizeProfile(payload['profile'] || response)
+  }
+
+  async getProfileLoginStatus(profileId: string): Promise<GoogleFlowSessionStatus & { status?: PlaywrightProfileStatus, profile?: PlaywrightProfileSummary }> {
+    const path = this.buildPath(this.conf.loginStatusPath, { profileId })
+    const response = await this.requestJson('GET', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(payload['loggedIn']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
+      status: this.normalizeProfileStatus(payload['status']),
+      profile: payload['profile'] ? this.normalizeProfile(payload['profile']) : undefined,
+      raw: response,
+    }
+  }
+
+  async resumeProfileLogin(profileId: string): Promise<GoogleFlowSessionStatus & { status?: PlaywrightProfileStatus, profile?: PlaywrightProfileSummary }> {
+    const path = this.buildPath(this.conf.loginResumePath, { profileId })
+    const response = await this.requestJson('POST', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(payload['loggedIn']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
+      status: this.normalizeProfileStatus(payload['status']),
+      profile: payload['profile'] ? this.normalizeProfile(payload['profile']) : undefined,
+      raw: response,
+    }
+  }
+
+  async resetProfileLogin(profileId: string): Promise<GoogleFlowSessionStatus & { status?: PlaywrightProfileStatus, profile?: PlaywrightProfileSummary }> {
+    const path = this.buildPath(this.conf.loginResetPath, { profileId })
+    const response = await this.requestJson('POST', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      loggedIn: Boolean(payload['loggedIn']),
+      account: typeof payload['account'] === 'string' ? payload['account'] : undefined,
+      status: this.normalizeProfileStatus(payload['status']),
+      profile: payload['profile'] ? this.normalizeProfile(payload['profile']) : undefined,
+      raw: response,
+    }
+  }
+
+  async getProfileDebug(profileId: string): Promise<PlaywrightProfileDebugInfo> {
+    const path = this.buildPath(this.conf.profileDebugPath, { profileId })
+    const response = await this.requestJson('GET', path)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    const profileRaw = payload['profile'] || {}
+    return {
+      profile: this.normalizeProfile(profileRaw),
+      debug: (payload['debug'] && typeof payload['debug'] === 'object') ? payload['debug'] as PlaywrightProfileDebugInfo['debug'] : {},
       raw: response,
     }
   }

@@ -43,6 +43,13 @@ const {
   GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH,
   GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH,
   GOOGLE_FLOW_BROWSER_RELOGIN_PATH,
+  GOOGLE_FLOW_BROWSER_PROFILES_PATH,
+  GOOGLE_FLOW_BROWSER_PROFILE_BY_ID_PATH,
+  GOOGLE_FLOW_BROWSER_LOGIN_START_PATH,
+  GOOGLE_FLOW_BROWSER_LOGIN_STATUS_PATH,
+  GOOGLE_FLOW_BROWSER_LOGIN_RESUME_PATH,
+  GOOGLE_FLOW_BROWSER_LOGIN_RESET_PATH,
+  GOOGLE_FLOW_BROWSER_PROFILE_DEBUG_PATH,
 } = process.env
 
 const {
@@ -189,6 +196,13 @@ module.exports = {
       loginUrlPath: GOOGLE_FLOW_BROWSER_LOGIN_URL_PATH || '/v1/auth/login-url',
       sessionStatusPath: GOOGLE_FLOW_BROWSER_SESSION_STATUS_PATH || '/v1/auth/session-status',
       reloginPath: GOOGLE_FLOW_BROWSER_RELOGIN_PATH || '/v1/auth/relogin',
+      profilesPath: GOOGLE_FLOW_BROWSER_PROFILES_PATH || '/v1/profiles',
+      profileByIdPath: GOOGLE_FLOW_BROWSER_PROFILE_BY_ID_PATH || '/v1/profiles/{profileId}',
+      loginStartPath: GOOGLE_FLOW_BROWSER_LOGIN_START_PATH || '/v1/profiles/{profileId}/login/start',
+      loginStatusPath: GOOGLE_FLOW_BROWSER_LOGIN_STATUS_PATH || '/v1/profiles/{profileId}/login/status',
+      loginResumePath: GOOGLE_FLOW_BROWSER_LOGIN_RESUME_PATH || '/v1/profiles/{profileId}/login/resume',
+      loginResetPath: GOOGLE_FLOW_BROWSER_LOGIN_RESET_PATH || '/v1/profiles/{profileId}/login/reset',
+      profileDebugPath: GOOGLE_FLOW_BROWSER_PROFILE_DEBUG_PATH || '/v1/profiles/{profileId}/debug',
     },
     aideo: {
       vCreative: {

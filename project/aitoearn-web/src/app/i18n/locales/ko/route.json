@@ -20,5 +20,6 @@
   "driveExplorer": "드라이브 탐색기",
   "taskSquare": "골드러시 광장",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright Manager"
 }

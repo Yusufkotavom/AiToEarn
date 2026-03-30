@@ -142,7 +142,13 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className }: AiBatchGen
   const lastAppliedBrandIdRef = useRef<string | null>(null)
 
   // Pricing 数据
-  const { pricingData, isLoading: isPricingLoading } = usePricingData()
+  const { pricingData, isLoading: isPricingLoading, error: pricingError } = usePricingData()
+
+  useEffect(() => {
+    if (pricingError) {
+      toast.error('Failed to load pricing/models')
+    }
+  }, [pricingError])
 
   // 派生：图文模型选项列表
   const imageModelOptions = useMemo(() => {
@@ -771,6 +777,11 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className }: AiBatchGen
       return
     }
 
+    if (!pricingData) {
+      toast.error('Pricing/models unavailable, please retry later')
+      return
+    }
+
     // 提示词验证
     if (!promptValue.trim()) {
       toast.warning(t('detail.promptRequired'))
@@ -859,7 +870,7 @@ const AiBatchGenerateBar = memo(({ groupId, onGenerated, className }: AiBatchGen
         onGenerated?.()
       }
     }
-  }, [promptValue, aspectRatio, duration, modelType, selectedImages, localImages, localVideos, hasVideos, quantity, createBatchGeneration, createImageTextBatchGeneration, contentType, imageModel, imageCount, imageSize, imagePricing, videoCredits, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, effectiveLimitsDetailed, isDraftMode])
+  }, [pricingData, promptValue, aspectRatio, duration, modelType, selectedImages, localImages, localVideos, hasVideos, quantity, createBatchGeneration, createImageTextBatchGeneration, contentType, imageModel, imageCount, imageSize, imagePricing, videoCredits, isUploading, t, groupId, onGenerated, effectiveSelectedPlatforms, effectiveLimitsDetailed, isDraftMode])
 
   // Prompts 探索页 URL（不同语言对应不同路径）
   const promptsExploreUrl = useMemo(() => {

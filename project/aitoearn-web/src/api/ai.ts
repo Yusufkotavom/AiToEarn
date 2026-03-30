@@ -31,6 +31,7 @@ export function generateImage(data: {
   response_format?: 'url' | 'b64_json'
   size?: string
   style?: 'vivid' | 'natural'
+  profileId?: string
   user?: string
 }) {
   return http.post('ai/image/generate/async', data)
@@ -64,6 +65,7 @@ export function generateVideo(data: {
   image_tail?: string
   size?: string
   duration?: number
+  profileId?: string
   metadata?: Record<string, any>
 }) {
   // if (data.image) {
@@ -87,6 +89,58 @@ export function getVideoTaskStatus(taskId: string) {
 // 获取视频生成历史记录
 export function getVideoGenerations(params?: { page?: number, pageSize?: number }) {
   return http.get('ai/video/generations', params)
+}
+
+// Google Flow (Playwright relay) login/session management
+export function getGoogleFlowLoginUrl() {
+  return http.get('ai/google-flow/login-url')
+}
+
+export function getGoogleFlowSessionStatus() {
+  return http.get('ai/google-flow/session-status')
+}
+
+export function reloginGoogleFlowSession() {
+  return http.post('ai/google-flow/relogin')
+}
+
+// Playwright profile management
+export function listPlaywrightProfiles() {
+  return http.get('ai/playwright/profiles')
+}
+
+export function createPlaywrightProfile(data: {
+  id?: string
+  label: string
+  provider?: string
+  capabilities?: string[]
+  headless?: boolean
+}) {
+  return http.post('ai/playwright/profiles', data)
+}
+
+export function getPlaywrightProfile(profileId: string) {
+  return http.get(`ai/playwright/profiles/${encodeURIComponent(profileId)}`)
+}
+
+export function startPlaywrightProfileLogin(profileId: string) {
+  return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/start`)
+}
+
+export function getPlaywrightProfileLoginStatus(profileId: string) {
+  return http.get(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/status`)
+}
+
+export function resumePlaywrightProfileLogin(profileId: string) {
+  return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/resume`)
+}
+
+export function resetPlaywrightProfileLogin(profileId: string) {
+  return http.post(`ai/playwright/profiles/${encodeURIComponent(profileId)}/login/reset`)
+}
+
+export function getPlaywrightProfileDebug(profileId: string) {
+  return http.get(`ai/playwright/profiles/${encodeURIComponent(profileId)}/debug`)
 }
 
 // 保留旧的接口以保持向后兼容性（可选）

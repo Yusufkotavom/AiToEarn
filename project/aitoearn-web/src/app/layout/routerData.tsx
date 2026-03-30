@@ -5,6 +5,7 @@
 import {
   Bot,
   CalendarClock,
+  Wrench,
   LayoutPanelTop,
   HardDrive,
   History,
@@ -75,5 +76,11 @@ export const routerData: IRouterDataItem[] = [
     translationKey: 'contentScheduler',
     path: '/content-scheduler',
     icon: <CalendarClock size={20} />,
+  },
+  {
+    name: 'Playwright Manager',
+    translationKey: 'playwrightManager',
+    path: '/playwright-manager',
+    icon: <Wrench size={20} />,
   },
 ]

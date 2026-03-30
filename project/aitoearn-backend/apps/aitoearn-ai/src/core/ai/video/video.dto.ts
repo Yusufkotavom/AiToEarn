@@ -11,6 +11,7 @@ const videoGenerationRequestSchema = z.object({
   mode: z.string().optional().describe('生成模式'),
   size: z.string().optional().describe('尺寸'),
   duration: z.number().optional().describe('时长'),
+  profileId: z.string().optional().describe('Playwright profile ID (required for google-flow-browser models)'),
   metadata: z.record(z.string(), z.unknown()).optional().describe('其他参数'),
 })
 

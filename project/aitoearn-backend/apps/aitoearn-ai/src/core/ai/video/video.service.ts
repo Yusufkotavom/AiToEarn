@@ -316,7 +316,10 @@ export class VideoService {
     request: UserVideoGenerationRequestDto,
     createTaskResponse: (taskId: string, points: number) => T,
   ) {
-    const { userId, userType, model, prompt, duration } = request
+    const { userId, userType, model, prompt, duration, profileId } = request
+    if (!profileId) {
+      throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-video')
+    }
     const points = await this.calculateVideoGenerationPrice({ model, userId, userType, duration })
     const imageUrl = Array.isArray(request.image) ? request.image[0] : request.image
     const startedAt = new Date()
@@ -325,6 +328,7 @@ export class VideoService {
       userId,
       model,
       prompt,
+      profileId,
       duration: duration || 8,
       size: request.size || '720x1280',
       image: imageUrl,

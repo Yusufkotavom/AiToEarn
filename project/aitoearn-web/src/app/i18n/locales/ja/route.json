@@ -20,5 +20,6 @@
   "driveExplorer": "ドライブエクスプローラー",
   "taskSquare": "ゴールドラッシュ広場",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright Manager"
 }

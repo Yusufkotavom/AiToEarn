@@ -384,14 +384,17 @@ export function useCreateMaterialForm({
         : nextDescription.trim()
       const hasContentChanged = nextTitle !== params.title || nextDes !== params.des
 
+      if (generated.model === 'local-fallback') {
+        toast.error(t('createMaterial.metadataGenerateFailed'))
+        return false
+      }
+
       updateParams({
         title: nextTitle,
         des: nextDes,
       })
-      if (generated.model === 'local-fallback') {
-        toast.info(t('createMaterial.metadataGenerateFallbackUsed'))
-      }
-      else if (!hasContentChanged && settings.strategy === 'replace_empty') {
+
+      if (!hasContentChanged && settings.strategy === 'replace_empty') {
         toast.info(t('createMaterial.metadataGenerateNoChanges'))
       }
       else {

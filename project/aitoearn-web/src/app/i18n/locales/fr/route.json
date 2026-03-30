@@ -19,5 +19,6 @@
   "uptime": "Statut",
   "taskSquare": "Place de la ruée vers l'or",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright Manager"
 }

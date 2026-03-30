@@ -24,5 +24,6 @@
   "myTasks": "我的任务",
   "createTask": "创建任务",
   "contentManager": "Content Manager",
-  "contentScheduler": "Content Scheduler"
+  "contentScheduler": "Content Scheduler",
+  "playwrightManager": "Playwright 管理"
 }
