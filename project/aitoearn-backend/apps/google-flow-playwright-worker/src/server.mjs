@@ -1546,24 +1546,6 @@ async function applyFlowGenerationControls(page, kind, payload) {
     console.log(`[controls] model sub-button clicked=${subClicked}`)
     await page.waitForTimeout(800)
 
-    // --- TEMP DEBUG: dump model sub-picker HTML to file ---
-    try {
-      const { writeFileSync } = await import('fs')
-      const debugHtml = await page.evaluate(() => {
-        const poppers = Array.from(document.querySelectorAll('[data-radix-popper-content-wrapper]'))
-        const out = poppers.map((p, i) => `\n=== POPPER ${i} ===\n${p.innerHTML.substring(0, 8000)}`)
-        const items = Array.from(document.querySelectorAll('[role="menuitem"],[role="option"],[role="radio"],[role="listitem"]'))
-        out.push(`\n=== MENUITEMS (${items.length}) ===`)
-        items.forEach(el => out.push(el.outerHTML.substring(0, 600)))
-        return out.join('\n')
-      })
-      writeFileSync('C:/tmp/flow-model-picker-html.txt', debugHtml)
-      console.log('[controls] DEBUG: HTML dumped to C:/tmp/flow-model-picker-html.txt')
-    } catch (e) {
-      console.log(`[controls] DEBUG dump error: ${e?.message}`)
-    }
-    // --- END TEMP DEBUG ---
-
     const picked = await clickFlowModelOption(page, modelKeywords)
     console.log(`[controls] model picked=${picked}`)
     await page.waitForTimeout(400)
@@ -2156,15 +2138,20 @@ async function runGeneration(profile, kind, payload) {
       const allUrls = await extractAllMediaUrls(page)
       if (allUrls.length > 0) {
         const percentSettledMs = noPercentSince ? Date.now() - noPercentSince : 0
-        if (allUrls.length > lastUrlCount) {
-          // New image(s) appeared — reset stability timer to wait for remaining images
+        if (!firstOutputAt) {
+          // First time we see any image — start stability timer
+          firstOutputAt = Date.now()
           lastUrlCount = allUrls.length
-          firstOutputAt = Date.now()
+          console.log(`[gen] ${kind}: ${allUrls.length} image(s) found, starting stability timer...`)
+        } else if (allUrls.length > lastUrlCount) {
+          // More images appeared — update count but do NOT reset timer
+          // (avoids infinite loop when Flow renders images progressively)
+          lastUrlCount = allUrls.length
           console.log(`[gen] ${kind}: ${allUrls.length} image(s) found, waiting for stability...`)
-        } else if (!firstOutputAt) {
-          firstOutputAt = Date.now()
         }
-        if (Date.now() - firstOutputAt >= 3000 && percentSettledMs >= 2000) {
+        const stableMs = Date.now() - firstOutputAt
+        console.log(`[gen] ${kind}: stable=${stableMs}ms percent_settled=${percentSettledMs}ms count=${allUrls.length}`)
+        if (stableMs >= 3000 && percentSettledMs >= 2000) {
           await saveSnapshot(profile, page, `${kind}-output-found`)
           appendEvent(profile, "success", `${kind} output ${allUrls.length} URL(s) extracted directly.`)
           writeProfileMeta(profile)
@@ -2172,7 +2159,9 @@ async function runGeneration(profile, kind, payload) {
           return allUrls.length === 1 ? allUrls[0] : { url: allUrls[0], urls: allUrls }
         }
       } else {
+        // No URLs visible yet — reset both timers
         firstOutputAt = 0
+        lastUrlCount = 0
       }
       if (kind === "image") {
         const visualReady = await hasLikelyGeneratedImages(page)
