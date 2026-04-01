@@ -25,5 +25,6 @@
   "createTask": "Create Task",
   "contentManager": "Content Manager",
   "contentScheduler": "Content Scheduler",
-  "playwrightManager": "Playwright Manager"
+  "playwrightManager": "Playwright Manager",
+  "playwrightBatch": "Playwright Batch"
 }

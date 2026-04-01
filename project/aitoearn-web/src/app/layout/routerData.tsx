@@ -5,6 +5,7 @@
 import {
   Bot,
   CalendarClock,
+  Images,
   Wrench,
   LayoutPanelTop,
   HardDrive,
@@ -89,5 +90,11 @@ export const routerData: IRouterDataItem[] = [
     translationKey: 'playwrightManager',
     path: '/playwright-manager',
     icon: <Wrench size={20} />,
+  },
+  {
+    name: 'Playwright Batch',
+    translationKey: 'playwrightBatch',
+    path: '/playwright-batch',
+    icon: <Images size={20} />,
   },
 ]

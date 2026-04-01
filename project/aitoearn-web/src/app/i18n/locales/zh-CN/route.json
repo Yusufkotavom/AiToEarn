@@ -26,5 +26,6 @@
   "createTask": "创建任务",
   "contentManager": "Content Manager",
   "contentScheduler": "Content Scheduler",
-  "playwrightManager": "Playwright 管理"
+  "playwrightManager": "Playwright 管理",
+  "playwrightBatch": "Playwright 批量生成"
 }
