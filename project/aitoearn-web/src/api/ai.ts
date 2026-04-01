@@ -119,6 +119,10 @@ export function createPlaywrightProfile(data: {
   return http.post('ai/playwright/profiles', data)
 }
 
+export function killAllPlaywrightProcesses() {
+  return http.post('ai/playwright/processes/kill-all')
+}
+
 export function getPlaywrightProfile(profileId: string) {
   return http.get(`ai/playwright/profiles/${encodeURIComponent(profileId)}`)
 }

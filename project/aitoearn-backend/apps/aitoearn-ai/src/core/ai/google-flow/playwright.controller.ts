@@ -45,6 +45,16 @@ export class PlaywrightController {
     return { profile }
   }
 
+  @Post('/processes/kill-all')
+  async killAllProcesses(@GetToken() _token: TokenInfo) {
+    const result = await this.googleFlowBrowserService.killAllProcesses()
+    return {
+      ok: result.ok,
+      note: result.note,
+      result: result.raw,
+    }
+  }
+
   @Post('/profiles/:profileId/login/start')
   async startLogin(@GetToken() _token: TokenInfo, @Param('profileId') profileId: string) {
     const profile = await this.googleFlowBrowserService.startProfileLogin(profileId)

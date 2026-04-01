@@ -208,6 +208,7 @@ export const aiConfigSchema = z.object({
     loginResetPath: z.string().default('/v1/profiles/{profileId}/login/reset'),
     loginCredentialsPath: z.string().default('/v1/profiles/{profileId}/login/credentials'),
     profileDebugPath: z.string().default('/v1/profiles/{profileId}/debug'),
+    killAllProcessesPath: z.string().default('/v1/processes/kill-all'),
     credentialsSecret: z.string().default(''),
   }),
   aideo: aideoPricingConfigSchema,

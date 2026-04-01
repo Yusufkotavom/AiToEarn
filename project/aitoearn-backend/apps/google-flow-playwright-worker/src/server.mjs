@@ -1,6 +1,7 @@
 import express from "express"
 import fs from "node:fs"
 import path from "node:path"
+import { spawn } from "node:child_process"
 import { chromium as baseChromium } from "playwright"
 import { chromium as chromiumExtra } from "playwright-extra"
 import StealthPlugin from "puppeteer-extra-plugin-stealth"
@@ -88,7 +89,7 @@ const SELECTOR_SUBMIT = (process.env.GOOGLE_FLOW_SELECTOR_SUBMIT || [
 ].join(",")).split(",").map(s => s.trim()).filter(Boolean)
 const SELECTOR_IMAGE_OUTPUT = (process.env.GOOGLE_FLOW_SELECTOR_IMAGE_OUTPUT || "img[src*=\"getMediaUrlRedirect\"],img[src^=\"/fx/api/\"],img[src^=\"https://\"],img[src^=\"blob:\"],img[src^=\"data:image/\"],source[srcset],a[href^=\"blob:\"],a[href^=\"data:image/\"]").split(",").map(s => s.trim()).filter(Boolean)
 const SELECTOR_VIDEO_OUTPUT = (process.env.GOOGLE_FLOW_SELECTOR_VIDEO_OUTPUT || "video[src],video source[src],a[href$=\".mp4\"]").split(",").map(s => s.trim()).filter(Boolean)
-const SELECTOR_LOGIN_MARKER = (process.env.GOOGLE_FLOW_SELECTOR_LOGIN_MARKER || "input[type=\"email\"],button:has-text(\"Sign in\"),a:has-text(\"Sign in\")").split(",").map(s => s.trim()).filter(Boolean)
+const SELECTOR_LOGIN_MARKER = (process.env.GOOGLE_FLOW_SELECTOR_LOGIN_MARKER || "input[type=\"email\"],input#identifierId,input[name=\"identifier\"]").split(",").map(s => s.trim()).filter(Boolean)
 const SELECTOR_LOGIN_EMAIL = (process.env.GOOGLE_FLOW_SELECTOR_LOGIN_EMAIL || "input[type=\"email\"],input[name=\"identifier\"],input[autocomplete=\"username\"],input[type=\"text\"][autocomplete=\"username\"],input[type=\"text\"][name=\"identifier\"],input[type=\"text\"][aria-label*=\"Email\" i],input[type=\"text\"][aria-label*=\"phone\" i]").split(",").map(s => s.trim()).filter(Boolean)
 const SELECTOR_LOGIN_PASSWORD = (process.env.GOOGLE_FLOW_SELECTOR_LOGIN_PASSWORD || "input[type=\"password\"]").split(",").map(s => s.trim()).filter(Boolean)
 const SELECTOR_LOGIN_SUBMIT = (process.env.GOOGLE_FLOW_SELECTOR_LOGIN_SUBMIT || "button[type=\"submit\"],button:has-text(\"Next\"),button:has-text(\"Sign in\"),div[role=\"button\"]:has-text(\"Next\")").split(",").map(s => s.trim()).filter(Boolean)
@@ -306,6 +307,97 @@ async function closeProfileContext(profileId) {
   }
   catch {
     // already closed or failed to launch — ignore
+  }
+}
+
+async function postRemoteLoginClose() {
+  if (!REMOTE_LOGIN_OPEN_URL) {
+    return { attempted: false, ok: true, note: "REMOTE_LOGIN_OPEN_URL not configured" }
+  }
+  try {
+    const closeUrl = new URL("/v1/login/close", REMOTE_LOGIN_OPEN_URL)
+    const response = await fetch(closeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15000),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return {
+        attempted: true,
+        ok: false,
+        status: response.status,
+        message: String(payload?.message || `Remote login close failed: HTTP ${response.status}`),
+      }
+    }
+    return {
+      attempted: true,
+      ok: true,
+      status: response.status,
+      note: typeof payload?.note === "string" ? payload.note : undefined,
+    }
+  }
+  catch (error) {
+    return {
+      attempted: true,
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+function pkillByPattern(pattern) {
+  return new Promise((resolve) => {
+    const proc = spawn("pkill", ["-f", pattern], {
+      stdio: "ignore",
+    })
+    proc.once("error", (error) => {
+      resolve({
+        pattern,
+        ok: false,
+        code: null,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    })
+    proc.once("close", (code) => {
+      resolve({
+        pattern,
+        // pkill exit code 1 means no process matched.
+        ok: code === 0 || code === 1,
+        code,
+      })
+    })
+  })
+}
+
+async function killAllPlaywrightProcesses(reason = "manual_request") {
+  const profileList = Array.from(profiles.values())
+  const closedContexts = []
+
+  await Promise.all(profileList.map(async (profile) => {
+    await closeProfileContext(profile.id).catch(() => {})
+    profile.status = PROFILE_STATE_IDLE
+    profile.account = ""
+    profile.debug.lastStep = "processes_killed"
+    profile.debug.lastError = ""
+    appendEvent(profile, "warn", `All browser processes stopped (${reason}).`)
+    writeProfileMeta(profile)
+    closedContexts.push(profile.id)
+  }))
+
+  const remoteLoginClose = await postRemoteLoginClose()
+  const localKills = await Promise.all([
+    pkillByPattern("chrome --type="),
+    pkillByPattern("google-chrome"),
+    pkillByPattern("chromium"),
+    pkillByPattern("chrome_crashpad"),
+  ])
+
+  return {
+    ok: true,
+    closedContexts,
+    remoteLoginClose,
+    localKills,
   }
 }
 
@@ -981,6 +1073,70 @@ async function extractAllMediaUrls(page) {
     return results.map(r => r.url)
   }, FLOW_URL).catch(() => [])
   return urls
+}
+
+async function resolveSingleMediaUrl(page, inputUrl) {
+  const url = String(inputUrl || "").trim()
+  if (!url) {
+    return ""
+  }
+  if (!/getMediaUrlRedirect|\/fx\/api\//i.test(url)) {
+    return url
+  }
+
+  const request = page.context().request
+  let current = url
+  for (let hop = 0; hop < 4; hop++) {
+    try {
+      const response = await request.fetch(current, { maxRedirects: 0, timeout: 15000 })
+      const headers = response.headers()
+      const location = headers.location || headers.Location
+      const contentType = String(headers["content-type"] || headers["Content-Type"] || "").toLowerCase()
+
+      if (location) {
+        current = location.startsWith("http") ? location : new URL(location, current).toString()
+        continue
+      }
+      if (!/getMediaUrlRedirect|\/fx\/api\//i.test(current)) {
+        return current
+      }
+      if (contentType.startsWith("image/")) {
+        return current
+      }
+      break
+    }
+    catch {
+      break
+    }
+  }
+
+  try {
+    const followed = await request.get(url, { timeout: 20000 })
+    const finalUrl = followed.url()
+    if (finalUrl && !/getMediaUrlRedirect|\/fx\/api\//i.test(finalUrl)) {
+      return finalUrl
+    }
+  }
+  catch {
+    // fall through
+  }
+
+  return url
+}
+
+async function resolveMediaUrls(page, urls) {
+  const resolved = []
+  const seen = new Set()
+  for (const raw of Array.isArray(urls) ? urls : []) {
+    const next = await resolveSingleMediaUrl(page, raw)
+    const value = String(next || "").trim()
+    if (!value || seen.has(value)) {
+      continue
+    }
+    seen.add(value)
+    resolved.push(value)
+  }
+  return resolved
 }
 
 async function clickRoleByName(page, role, names) {
@@ -2145,8 +2301,12 @@ async function runGeneration(profile, kind, payload) {
     await saveSnapshot(profile, page, `${kind}-submitted`)
 
     const outputSelectors = kind === "video" ? SELECTOR_VIDEO_OUTPUT : SELECTOR_IMAGE_OUTPUT
+    const requestedImageCount = kind === "image"
+      ? Math.min(4, Math.max(1, Number.parseInt(String(payload?.n || 1), 10) || 1))
+      : 1
     const deadline = Date.now() + ACTION_TIMEOUT_MS
     let firstOutputAt = 0
+    let firstAnyOutputAt = 0
     let lastUrlCount = 0
     let stableOutputUrl = ""
     let firstVisualReadyAt = 0
@@ -2164,10 +2324,18 @@ async function runGeneration(profile, kind, payload) {
       // If URL already extractable via getMediaUrlRedirect → return immediately, no download needed
       const allUrls = await extractAllMediaUrls(page)
       if (allUrls.length > 0) {
+        if (!firstAnyOutputAt) {
+          firstAnyOutputAt = Date.now()
+        }
         const percentSettledMs = noPercentSince ? Date.now() - noPercentSince : 0
-        if (allUrls.length > lastUrlCount) {
-          // New image(s) appeared — reset stability timer to wait for remaining images
+        const hasMoreUrls = allUrls.length > lastUrlCount
+        // For n=1, don't keep resetting stability when UI count fluctuates (often 1<->2 tiles).
+        const shouldResetStabilityForMoreUrls = requestedImageCount > 1 && hasMoreUrls
+        if (hasMoreUrls) {
           lastUrlCount = allUrls.length
+        }
+        if (shouldResetStabilityForMoreUrls) {
+          // New image(s) appeared — reset stability timer to wait for remaining images
           firstOutputAt = Date.now()
           console.log(`[gen] ${kind}: ${allUrls.length} image(s) found, waiting for stability...`)
         } else if (!firstOutputAt) {
@@ -2175,21 +2343,27 @@ async function runGeneration(profile, kind, payload) {
         }
         const stableMs = Date.now() - firstOutputAt
         console.log(`[gen] ${kind}: stable=${stableMs}ms percent_settled=${percentSettledMs}ms count=${allUrls.length}`)
+        const enoughCount = kind !== "image" || allUrls.length >= requestedImageCount
         // Normal condition: stable 3s + percent gone 2s
-        const normalReady = stableMs >= 3000 && percentSettledMs >= 2000
-        // Absolute fallback: if images haven't changed for 10s, just use what we have
-        const absoluteTimeout = stableMs >= 10000
+        const normalReady = enoughCount && stableMs >= 3000 && percentSettledMs >= 2000
+        // Absolute fallback: once any output appeared, don't wait forever for percent to disappear.
+        const absoluteTimeout = firstAnyOutputAt > 0 && (Date.now() - firstAnyOutputAt) >= 10000
         if (normalReady || absoluteTimeout) {
           if (absoluteTimeout && !normalReady) {
             console.log(`[gen] ${kind}: absolute 10s timeout — using ${allUrls.length} URL(s) as-is`)
           }
+          const resolvedUrls = await resolveMediaUrls(page, allUrls)
+          const finalUrls = resolvedUrls.length ? resolvedUrls : allUrls
           await saveSnapshot(profile, page, `${kind}-output-found`)
-          appendEvent(profile, "success", `${kind} output ${allUrls.length} URL(s) extracted directly.`)
+          appendEvent(profile, "success", `${kind} output ${finalUrls.length} URL(s) extracted directly.`)
           writeProfileMeta(profile)
-          // return first URL as string (compatible), extras in allUrls
-          return allUrls.length === 1 ? allUrls[0] : { url: allUrls[0], urls: allUrls }
+          if (kind === "image") {
+            return { url: finalUrls[0], urls: finalUrls }
+          }
+          return finalUrls[0]
         }
-      } else {
+      } else if (requestedImageCount > 1 || !firstAnyOutputAt) {
+        // Keep stability window for n=1 once output appeared, to avoid oscillation loops.
         firstOutputAt = 0
       }
       if (kind === "image") {
@@ -2211,7 +2385,14 @@ async function runGeneration(profile, kind, payload) {
             appendEvent(profile, "success", `${kind} output detected from visual panels.`)
             writeProfileMeta(profile)
             const outputUrl = await extractMediaUrl(page, outputSelectors, kind)
-            return outputUrl || page.url()
+            const allUrls = await extractAllMediaUrls(page)
+            if (allUrls.length > 0) {
+              const resolvedUrls = await resolveMediaUrls(page, allUrls)
+              const finalUrls = resolvedUrls.length ? resolvedUrls : allUrls
+              return { url: finalUrls[0], urls: finalUrls }
+            }
+            const resolvedSingle = await resolveSingleMediaUrl(page, outputUrl || page.url())
+            return resolvedSingle || outputUrl || page.url()
           }
         } else {
           firstVisualReadyAt = 0
@@ -2238,6 +2419,16 @@ async function runGeneration(profile, kind, payload) {
             await saveSnapshot(profile, page, `${kind}-output-found`)
             appendEvent(profile, "success", `${kind} output URL extracted.`)
             writeProfileMeta(profile)
+            if (kind === "image") {
+              const allUrls = await extractAllMediaUrls(page)
+              if (allUrls.length > 0) {
+                const resolvedUrls = await resolveMediaUrls(page, allUrls)
+                const finalUrls = resolvedUrls.length ? resolvedUrls : allUrls
+                return { url: finalUrls[0], urls: finalUrls }
+              }
+              const resolvedSingle = await resolveSingleMediaUrl(page, outputUrl)
+              return resolvedSingle || outputUrl
+            }
             return outputUrl
           }
         }
@@ -2539,12 +2730,27 @@ app.post("/v1/profiles/:id/login/resume", async (req, res) => {
 app.post("/v1/profiles/:id/login/open", async (req, res) => {
   try {
     const profile = getProfileOrThrow(req.params.id)
+    const killSummary = await killAllPlaywrightProcesses(`before_login_open:${profile.id}`)
     await openRemoteLoginBrowser(profile)
     appendEvent(profile, "info", "Remote login browser opened.")
     writeProfileMeta(profile)
     return res.json({
       profile: serializeProfile(profile),
       loginUrl: profile.loginUrl || REMOTE_LOGIN_PUBLIC_URL || FLOW_URL,
+      killSummary,
+    })
+  }
+  catch (error) {
+    return sendError(res, error)
+  }
+})
+
+app.post("/v1/processes/kill-all", async (_req, res) => {
+  try {
+    const result = await killAllPlaywrightProcesses("manual_kill_all")
+    return res.json({
+      ...result,
+      note: "All Chrome/Playwright processes were stopped. You can open login browser again.",
     })
   }
   catch (error) {

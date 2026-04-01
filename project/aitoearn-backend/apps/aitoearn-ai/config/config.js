@@ -53,6 +53,7 @@ const {
   GOOGLE_FLOW_BROWSER_LOGIN_RESET_PATH,
   GOOGLE_FLOW_BROWSER_LOGIN_CREDENTIALS_PATH,
   GOOGLE_FLOW_BROWSER_PROFILE_DEBUG_PATH,
+  GOOGLE_FLOW_BROWSER_KILL_ALL_PROCESSES_PATH,
   PLAYWRIGHT_CREDENTIALS_SECRET,
 } = process.env
 
@@ -210,6 +211,7 @@ module.exports = {
       loginResetPath: GOOGLE_FLOW_BROWSER_LOGIN_RESET_PATH || '/v1/profiles/{profileId}/login/reset',
       loginCredentialsPath: GOOGLE_FLOW_BROWSER_LOGIN_CREDENTIALS_PATH || '/v1/profiles/{profileId}/login/credentials',
       profileDebugPath: GOOGLE_FLOW_BROWSER_PROFILE_DEBUG_PATH || '/v1/profiles/{profileId}/debug',
+      killAllProcessesPath: GOOGLE_FLOW_BROWSER_KILL_ALL_PROCESSES_PATH || '/v1/processes/kill-all',
       credentialsSecret: PLAYWRIGHT_CREDENTIALS_SECRET || '',
     },
     aideo: {

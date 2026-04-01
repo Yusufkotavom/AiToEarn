@@ -3,6 +3,7 @@ import {
   createPlaywrightProfile,
   getPlaywrightProfileDebug,
   getPlaywrightProfileLoginStatus,
+  killAllPlaywrightProcesses,
   loginPlaywrightProfileWithCredentials,
   listPlaywrightProfiles,
   openPlaywrightProfileLoginBrowser,
@@ -69,6 +70,7 @@ export function usePlaywrightManager() {
   const [resumeLoading, setResumeLoading] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
   const [openLoginLoading, setOpenLoginLoading] = useState(false)
+  const [killAllLoading, setKillAllLoading] = useState(false)
   const [autoPolling, setAutoPolling] = useState(false)
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [events, setEvents] = useState<PlaywrightDebugEvent[]>([])
@@ -157,6 +159,7 @@ export function usePlaywrightManager() {
       }
 
       await loadProfiles()
+      await loadDebug(selectedProfileId)
 
       if (isLoggedIn && !opts?.silentSuccess) {
         toast.success('Playwright profile authenticated')
@@ -174,7 +177,7 @@ export function usePlaywrightManager() {
     finally {
       setChecking(false)
     }
-  }, [selectedProfileId, pushEvent, loadProfiles])
+  }, [selectedProfileId, pushEvent, loadProfiles, loadDebug])
 
   const stopAutoPolling = useCallback(() => {
     if (pollingTimerRef.current) {
@@ -286,6 +289,21 @@ export function usePlaywrightManager() {
 
     setOpenLoginLoading(true)
     try {
+      setKillAllLoading(true)
+      pushEvent('warn', 'Killing all Chrome/Playwright processes before opening login browser...')
+      try {
+        const killRes: any = await killAllPlaywrightProcesses()
+        const killNote = killRes?.data?.note ? String(killRes.data.note) : 'All processes stopped'
+        pushEvent('success', killNote)
+      }
+      catch (killError: any) {
+        const killMessage = killError?.message || 'Failed to kill all processes before opening login'
+        pushEvent('warn', killMessage)
+      }
+      finally {
+        setKillAllLoading(false)
+      }
+
       const res: any = await openPlaywrightProfileLoginBrowser(selectedProfileId)
       const nextUrl = res?.data?.loginUrl ? String(res.data.loginUrl) : ''
       const nextProfile = res?.data?.profile
@@ -309,6 +327,30 @@ export function usePlaywrightManager() {
       setOpenLoginLoading(false)
     }
   }, [selectedProfileId, status, loadProfiles, pushEvent])
+
+  const handleKillAllProcesses = useCallback(async () => {
+    setKillAllLoading(true)
+    try {
+      const res: any = await killAllPlaywrightProcesses()
+      const note = res?.data?.note ? String(res.data.note) : 'All browser processes stopped.'
+      setDebugMessage(note)
+      pushEvent('warn', note)
+      setLoggedIn(null)
+      setStatus('idle')
+      setAccount('')
+      await loadProfiles()
+      toast.success('All browser processes stopped')
+    }
+    catch (error: any) {
+      const message = error?.message || 'Failed to kill browser processes'
+      setDebugMessage(message)
+      pushEvent('error', message)
+      toast.error(message)
+    }
+    finally {
+      setKillAllLoading(false)
+    }
+  }, [loadProfiles, pushEvent])
 
   const handleResumeLogin = useCallback(async () => {
     if (!selectedProfileId) {
@@ -529,6 +571,7 @@ export function usePlaywrightManager() {
     setEvents([])
     // checkSession reads in-memory status (lightweight, no browser opened)
     void (async () => {
+      await loadDebug(selectedProfileId)
       const isLoggedIn = await checkSession({ silentSuccess: true })
       // If already authenticated on mount, do NOT start the polling timer
       if (!isLoggedIn) {
@@ -536,7 +579,7 @@ export function usePlaywrightManager() {
         // User must explicitly start login flow to trigger auto-polling
       }
     })()
-  }, [selectedProfileId, checkSession])
+  }, [selectedProfileId, checkSession, loadDebug])
 
   useEffect(() => {
     return () => {
@@ -571,6 +614,7 @@ export function usePlaywrightManager() {
     resumeLoading,
     resetLoading,
     openLoginLoading,
+    killAllLoading,
     autoPolling,
     events,
 
@@ -578,6 +622,7 @@ export function usePlaywrightManager() {
     stopAutoPolling,
     handleStartLogin,
     handleOpenLoginBrowser,
+    handleKillAllProcesses,
     handleResumeLogin,
     handleResetLogin,
     handleCredentialsLogin,

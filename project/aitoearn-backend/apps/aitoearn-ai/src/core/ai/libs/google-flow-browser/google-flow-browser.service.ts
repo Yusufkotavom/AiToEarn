@@ -9,6 +9,7 @@ export interface GoogleFlowTaskResult {
   taskId?: string
   status: GoogleFlowTaskStatus
   outputUrl?: string
+  outputUrls?: string[]
   error?: string
   raw: unknown
 }
@@ -30,6 +31,12 @@ export interface GoogleFlowCredentialsLoginResult extends GoogleFlowSessionStatu
   status?: PlaywrightProfileStatus
   profile?: PlaywrightProfileSummary
   note?: string
+}
+
+export interface PlaywrightKillAllProcessesResult {
+  ok: boolean
+  note?: string
+  raw: unknown
 }
 
 export interface PlaywrightProfileLoginOpenResult {
@@ -121,6 +128,26 @@ export class GoogleFlowBrowserService {
     return typeof nested === 'string' && nested.length > 0 ? nested : undefined
   }
 
+  private extractUrls(payload: Record<string, unknown>): string[] | undefined {
+    const candidates = [
+      payload['outputUrls'],
+      payload['urls'],
+      (payload['data'] && typeof payload['data'] === 'object') ? (payload['data'] as Record<string, unknown>)['urls'] : undefined,
+      (payload['result'] && typeof payload['result'] === 'object') ? (payload['result'] as Record<string, unknown>)['urls'] : undefined,
+    ]
+    for (const value of candidates) {
+      if (Array.isArray(value)) {
+        const urls = value
+          .map(item => (typeof item === 'string' ? item.trim() : ''))
+          .filter(item => item.length > 0)
+        if (urls.length > 0) {
+          return urls
+        }
+      }
+    }
+    return undefined
+  }
+
   private extractError(payload: Record<string, unknown>): string | undefined {
     const direct = payload['error'] || payload['message']
     if (typeof direct === 'string' && direct.length > 0) {
@@ -137,10 +164,12 @@ export class GoogleFlowBrowserService {
     const taskId = typeof taskIdValue === 'string' && taskIdValue.length > 0 ? taskIdValue : undefined
     const status = this.normalizeStatus(payload['status'] || payload['state'])
     const outputUrl = this.extractUrl(payload)
+    const outputUrls = this.extractUrls(payload)
     const error = this.extractError(payload)
 
-    const finalStatus = outputUrl && status === 'queued' ? 'succeeded' : status
-    return { taskId, status: finalStatus, outputUrl, error, raw }
+    const hasOutput = Boolean(outputUrl) || Boolean(outputUrls?.length)
+    const finalStatus = hasOutput && status === 'queued' ? 'succeeded' : status
+    return { taskId, status: finalStatus, outputUrl, outputUrls, error, raw }
   }
 
   private normalizeProfile(raw: unknown): PlaywrightProfileSummary {
@@ -395,6 +424,16 @@ export class GoogleFlowBrowserService {
     return {
       profile: this.normalizeProfile(profileRaw),
       debug: (payload['debug'] && typeof payload['debug'] === 'object') ? payload['debug'] as PlaywrightProfileDebugInfo['debug'] : {},
+      raw: response,
+    }
+  }
+
+  async killAllProcesses(): Promise<PlaywrightKillAllProcessesResult> {
+    const response = await this.requestJson('POST', this.conf.killAllProcessesPath)
+    const payload = (response && typeof response === 'object') ? response as Record<string, unknown> : {}
+    return {
+      ok: Boolean(payload['ok'] ?? true),
+      note: typeof payload['note'] === 'string' ? payload['note'] : undefined,
       raw: response,
     }
   }

@@ -36,12 +36,14 @@ export default function PlaywrightManagerPage() {
     resumeLoading,
     resetLoading,
     openLoginLoading,
+    killAllLoading,
     autoPolling,
     events,
     checkSession,
     stopAutoPolling,
     handleStartLogin,
     handleOpenLoginBrowser,
+    handleKillAllProcesses,
     handleResumeLogin,
     handleResetLogin,
     handleCredentialsLogin,
@@ -233,9 +235,26 @@ export default function PlaywrightManagerPage() {
         <Button
           variant="outline"
           onClick={() => {
+            void handleKillAllProcesses()
+          }}
+          disabled={killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading || verifyLoading}
+        >
+          {killAllLoading
+            ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                Killing
+              </>
+            )
+            : 'Kill All Processes'}
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => {
             void handleOpenLoginBrowser()
           }}
-          disabled={!selectedProfileId || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
+          disabled={!selectedProfileId || killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
         >
           {openLoginLoading
             ? (
@@ -252,7 +271,7 @@ export default function PlaywrightManagerPage() {
           onClick={() => {
             void handleStartLogin()
           }}
-          disabled={!selectedProfileId || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
+          disabled={!selectedProfileId || killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
         >
           {startLoading
             ? (
@@ -269,7 +288,7 @@ export default function PlaywrightManagerPage() {
           onClick={() => {
             void handleResumeLogin()
           }}
-          disabled={!selectedProfileId || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
+          disabled={!selectedProfileId || killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
         >
           {resumeLoading
             ? (
@@ -286,7 +305,7 @@ export default function PlaywrightManagerPage() {
           onClick={() => {
             void checkSession()
           }}
-          disabled={!selectedProfileId || checking || startLoading || resumeLoading || resetLoading || openLoginLoading || verifyLoading}
+          disabled={!selectedProfileId || killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading || verifyLoading}
         >
           {checking
             ? (
@@ -308,7 +327,7 @@ export default function PlaywrightManagerPage() {
           onClick={() => {
             void handleVerifyLogin()
           }}
-          disabled={!selectedProfileId || verifyLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
+          disabled={!selectedProfileId || killAllLoading || verifyLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
           title="Opens a headless browser to verify session. Use after Docker restart."
         >
           {verifyLoading
@@ -326,7 +345,7 @@ export default function PlaywrightManagerPage() {
           onClick={() => {
             void handleResetLogin()
           }}
-          disabled={!selectedProfileId || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
+          disabled={!selectedProfileId || killAllLoading || checking || startLoading || resumeLoading || resetLoading || openLoginLoading}
         >
           {resetLoading
             ? (

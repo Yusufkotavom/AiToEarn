@@ -302,13 +302,16 @@ export class ImageService {
     return new URL(`${trimmedBaseUrl}/prompt/${encodedPrompt}`)
   }
 
-  private async waitForGoogleFlowImage(taskId: string): Promise<string | undefined> {
+  private async waitForGoogleFlowImage(taskId: string): Promise<{ outputUrl?: string, outputUrls?: string[] }> {
     const deadline = Date.now() + this.googleFlowImageMaxWaitMs
 
     while (Date.now() < deadline) {
       const status = await this.googleFlowBrowserService.getTaskStatus(taskId)
       if (status.status === 'succeeded') {
-        return status.outputUrl
+        return {
+          outputUrl: status.outputUrl,
+          outputUrls: status.outputUrls,
+        }
       }
       if (status.status === 'failed') {
         throw new AppException(ResponseCode.AiCallFailed, status.error || 'Google Flow image generation failed')
@@ -342,12 +345,35 @@ export class ImageService {
     return `${Math.round(width / d)}:${Math.round(height / d)}`
   }
 
+  private normalizeAspectRatio(aspectRatio?: string): string | undefined {
+    const value = String(aspectRatio || '').trim()
+    if (!value) {
+      return undefined
+    }
+    const normalized = value
+      .replace(/\s+/g, '')
+      .replace(/[xX*]/g, ':')
+    const match = normalized.match(/^(\d{1,2}):(\d{1,2})$/)
+    if (!match) {
+      return undefined
+    }
+    return `${Number.parseInt(match[1], 10)}:${Number.parseInt(match[2], 10)}`
+  }
+
   /**
    * Google Flow browser 图片生成（通过内部 Playwright worker）
    */
   private async googleFlowBrowserGeneration(request: ImageGenerationDto): Promise<{ created: number, list: Array<{ url: string }> }> {
     if (!request.profileId) {
       throw new AppException(ResponseCode.AiCallFailed, 'profileId is required for google-flow-browser-image* models')
+    }
+
+    const session = await this.googleFlowBrowserService.verifyProfileLogin(request.profileId)
+    if (!session.loggedIn || session.status !== 'authenticated') {
+      throw new AppException(
+        ResponseCode.AiCallFailed,
+        'Playwright profile is not authenticated. Complete login challenge in Playwright Manager, then click Resume/Verify.',
+      )
     }
 
     const [width, height] = (request.size || '1024x1024').split('x')
@@ -357,7 +383,7 @@ export class ImageService {
     const list: Array<{ url: string }> = []
 
     // Prioritize explicit aspectRatio from client (e.g. "16:9"), else derive from size
-    const aspectRatio = request.aspectRatio || this.sizeToAspectRatio(size)
+    const aspectRatio = this.normalizeAspectRatio(request.aspectRatio) || this.sizeToAspectRatio(size)
 
     const result = await this.googleFlowBrowserService.createImageTask({
       userId: request.user || '',
@@ -374,16 +400,41 @@ export class ImageService {
       throw new AppException(ResponseCode.AiCallFailed, result.error || 'Google Flow image generation failed')
     }
 
-    let imageUrl = result.outputUrl
-    if (!imageUrl && result.taskId) {
-      imageUrl = await this.waitForGoogleFlowImage(result.taskId)
+    const dedupUrls = (values: Array<string | undefined>): string[] => {
+      const seen = new Set<string>()
+      const list: string[] = []
+      for (const value of values) {
+        const url = String(value || '').trim()
+        if (!url || seen.has(url)) {
+          continue
+        }
+        seen.add(url)
+        list.push(url)
+      }
+      return list
     }
-    if (!imageUrl) {
+
+    let imageUrls = dedupUrls([
+      result.outputUrl,
+      ...(result.outputUrls || []),
+    ])
+
+    if (imageUrls.length === 0 && result.taskId) {
+      const waited = await this.waitForGoogleFlowImage(result.taskId)
+      imageUrls = dedupUrls([
+        waited.outputUrl,
+        ...(waited.outputUrls || []),
+      ])
+    }
+
+    if (imageUrls.length === 0) {
       throw new AppException(ResponseCode.AiCallFailed, 'Google Flow image generation returned no image URL')
     }
 
-    const uploaded = await this.uploadImageToS3(imageUrl, request.user || '', request.model)
-    list.push({ url: uploaded })
+    for (const imageUrl of imageUrls) {
+      const uploaded = await this.uploadImageToS3(imageUrl, request.user || '', request.model)
+      list.push({ url: uploaded })
+    }
 
     return { created, list }
   }

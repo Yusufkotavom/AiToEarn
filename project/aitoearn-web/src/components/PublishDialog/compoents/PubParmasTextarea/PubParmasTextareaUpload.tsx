@@ -3,12 +3,14 @@
  * 支持图片和视频上传，本地上传和素材库选择
  */
 import type { ForwardedRef } from 'react'
+import type { DraftGenerationTask } from '@/api/draftGeneration'
 import type { MediaItem } from '@/components/PublishDialog/compoents/MaterialSelectionModal'
 import type { MediaType } from '@/components/PublishDialog/compoents/MaterialSelectionModal/types'
 import type { UploadResult } from '@/components/PublishDialog/compoents/PublishManageUpload/usePublishManageUpload.type'
 import type { IImgFile, IVideoFile } from '@/components/PublishDialog/publishDialog.type'
-import { Loader2, Plus, Upload } from 'lucide-react'
+import { Check, Loader2, Plus, Upload } from 'lucide-react'
 import React, { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { apiGetDraftGenerationList } from '@/api/draftGeneration'
 import { useTransClient } from '@/app/i18n/client'
 import { MaterialSelectionModal } from '@/components/PublishDialog/compoents/MaterialSelectionModal'
 import { UploadTaskTypeEnum } from '@/components/PublishDialog/compoents/PublishManageUpload/publishManageUpload.enum'
@@ -18,6 +20,9 @@ import {
   formatVideo,
   VideoGrabFrame,
 } from '@/components/PublishDialog/PublishDialog.util'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { getOssUrl } from '@/utils/oss'
@@ -47,9 +52,13 @@ const PubParmasTextareaUpload = memo(
       const { t } = useTransClient('publish')
       const fileInputRef = useRef<HTMLInputElement>(null)
       const [materialSelectionOpen, setMaterialSelectionOpen] = useState(false)
+      const [aiGeneratedSelectionOpen, setAiGeneratedSelectionOpen] = useState(false)
       const [importLoading, setImportLoading] = useState(false)
       const [isDragOver, setIsDragOver] = useState(false)
       const [isGlobalDragging, setIsGlobalDragging] = useState(false)
+      const [aiGeneratedLoading, setAiGeneratedLoading] = useState(false)
+      const [aiGeneratedItems, setAiGeneratedItems] = useState<Array<{ id: string, url: string, title?: string, createdAt?: string }>>([])
+      const [selectedAiGeneratedIds, setSelectedAiGeneratedIds] = useState<Set<string>>(new Set())
       const enqueueUpload = usePublishManageUpload(state => state.enqueueUpload)
 
       // 判断是否为视频模式
@@ -430,6 +439,125 @@ const PubParmasTextareaUpload = memo(
         [processImageMedia, processVideoMedia, onImgUpdateFinish, onVideoUpdateFinish],
       )
 
+      const loadAiGeneratedImages = useCallback(async () => {
+        setAiGeneratedLoading(true)
+        try {
+          const pageSize = 20
+          const maxPages = 5
+          const map = new Map<string, { id: string, url: string, title?: string, createdAt?: string }>()
+
+          for (let page = 1; page <= maxPages; page++) {
+            const res = await apiGetDraftGenerationList(page, pageSize)
+            const list = (res?.data?.list || []) as DraftGenerationTask[]
+            if (list.length === 0) {
+              break
+            }
+
+            for (const task of list) {
+              if (task.status !== 'success') {
+                continue
+              }
+              const urls = task.response?.imageUrls || []
+              if (!Array.isArray(urls) || urls.length === 0) {
+                continue
+              }
+              for (const rawUrl of urls) {
+                const cleanUrl = String(rawUrl || '').trim()
+                if (!cleanUrl || map.has(cleanUrl)) {
+                  continue
+                }
+                map.set(cleanUrl, {
+                  id: `${task.id}:${cleanUrl}`,
+                  url: cleanUrl,
+                  title: task.response?.title,
+                  createdAt: task.createdAt,
+                })
+              }
+            }
+
+            const totalPages = Number(res?.data?.totalPages || page)
+            if (page >= totalPages) {
+              break
+            }
+          }
+
+          setAiGeneratedItems(Array.from(map.values()))
+          setSelectedAiGeneratedIds(new Set())
+        }
+        catch (error) {
+          console.error('Failed to load AI generated images:', error)
+          toast.error('Failed to load AI generated images')
+        }
+        finally {
+          setAiGeneratedLoading(false)
+        }
+      }, [])
+
+      const processAiGeneratedImage = useCallback(async (rawUrl: string): Promise<IImgFile> => {
+        const sourceUrl = String(rawUrl || '').trim()
+        const downloadUrl = getOssUrl(sourceUrl)
+        const req = await fetch(downloadUrl)
+        if (!req.ok) {
+          throw new Error(`Failed to fetch image: ${req.status}`)
+        }
+        const blob = await req.blob()
+        const ext = (blob.type || 'image/jpeg').split('/')[1] || 'jpg'
+        const imageFile = await formatImg({
+          blob,
+          path: `ai_generated_${Date.now()}.${ext}`,
+        })
+        imageFile.ossUrl = sourceUrl
+        return imageFile
+      }, [])
+
+      const openAiGeneratedPicker = useCallback(async () => {
+        if (!uploadAccept.includes('image')) {
+          toast.warning(t('validation.uploadImage'))
+          return
+        }
+        setAiGeneratedSelectionOpen(true)
+        await loadAiGeneratedImages()
+      }, [loadAiGeneratedImages, t, uploadAccept])
+
+      const toggleAiGeneratedSelection = useCallback((id: string) => {
+        setSelectedAiGeneratedIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(id)) {
+            next.delete(id)
+          }
+          else {
+            next.add(id)
+          }
+          return next
+        })
+      }, [])
+
+      const importSelectedAiGeneratedImages = useCallback(async () => {
+        if (selectedAiGeneratedIds.size === 0) {
+          return
+        }
+        setImportLoading(true)
+        try {
+          const selectedItems = aiGeneratedItems.filter(item => selectedAiGeneratedIds.has(item.id))
+          const images: IImgFile[] = []
+          for (const item of selectedItems) {
+            const image = await processAiGeneratedImage(item.url)
+            images.push(image)
+          }
+          if (images.length > 0) {
+            onImgUpdateFinish(images)
+          }
+          setAiGeneratedSelectionOpen(false)
+        }
+        catch (error) {
+          console.error('Failed to import AI generated images:', error)
+          toast.error('Failed to import AI generated images')
+        }
+        finally {
+          setImportLoading(false)
+        }
+      }, [aiGeneratedItems, onImgUpdateFinish, processAiGeneratedImage, selectedAiGeneratedIds])
+
       return (
         <div className="relative h-[110px]" onClick={e => e.stopPropagation()}>
           <MaterialSelectionModal
@@ -438,6 +566,82 @@ const PubParmasTextareaUpload = memo(
             mediaTypes={mediaTypes}
             onSelect={handleMediaSelect}
           />
+          <Dialog open={aiGeneratedSelectionOpen} onOpenChange={setAiGeneratedSelectionOpen}>
+            <DialogContent className="sm:max-w-4xl max-h-[85vh]">
+              <DialogHeader>
+                <DialogTitle>Select AI Generated Images</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                {aiGeneratedLoading
+                  ? (
+                      <div className="h-52 flex items-center justify-center text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        Loading...
+                      </div>
+                    )
+                  : aiGeneratedItems.length === 0
+                    ? (
+                        <div className="h-52 flex items-center justify-center text-muted-foreground">
+                          No generated images found.
+                        </div>
+                      )
+                    : (
+                        <ScrollArea className="h-[52vh] pr-2">
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {aiGeneratedItems.map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                className={cn(
+                                  'relative group rounded-md overflow-hidden border bg-muted cursor-pointer text-left',
+                                  selectedAiGeneratedIds.has(item.id)
+                                    ? 'border-primary ring-2 ring-primary/40'
+                                    : 'border-border',
+                                )}
+                                onClick={() => toggleAiGeneratedSelection(item.id)}
+                              >
+                                <img
+                                  src={getOssUrl(item.url)}
+                                  alt={item.title || 'AI generated'}
+                                  className="w-full aspect-square object-cover"
+                                />
+                                <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center">
+                                  {selectedAiGeneratedIds.has(item.id) && <Check className="h-3.5 w-3.5" />}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    {selectedAiGeneratedIds.size}
+                    {' '}
+                    selected
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="cursor-pointer"
+                      onClick={() => setAiGeneratedSelectionOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      className="cursor-pointer"
+                      disabled={selectedAiGeneratedIds.size === 0 || importLoading}
+                      onClick={importSelectedAiGeneratedImages}
+                    >
+                      {importLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Use Selected
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* 隐藏的文件输入 */}
           <input
@@ -496,6 +700,13 @@ const PubParmasTextareaUpload = memo(
                     data-testid="publish-select-material-button"
                   >
                     {t('actions.selectMaterial')}
+                  </div>
+                  <div
+                    className="px-3 py-1.5 text-sm cursor-pointer rounded hover:bg-accent transition-colors whitespace-nowrap"
+                    onClick={() => { void openAiGeneratedPicker() }}
+                    data-testid="publish-select-ai-generated-button"
+                  >
+                    Select AI Generated
                   </div>
                 </div>
                 {/* 箭头 */}

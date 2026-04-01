@@ -1,6 +1,6 @@
 import { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
 import { AIMessage, HumanMessage } from '@langchain/core/messages'
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatOpenAI } from '@langchain/openai'
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
 import { QueueService } from '@yikart/aitoearn-queue'
 import { AssetsService, VideoMetadataService } from '@yikart/assets'
@@ -84,6 +84,9 @@ interface RunningGenerationTask {
   abortController: AbortController
   completionPromise: Promise<void>
 }
+
+const GROQ_OPENAI_BASE_URL = 'https://api.groq.com/openai/v1'
+const DEFAULT_DRAFT_PLANNING_MODEL = 'llama-3.3-70b-versatile'
 
 @Injectable()
 export class DraftGenerationService implements OnModuleDestroy {
@@ -579,8 +582,9 @@ export class DraftGenerationService implements OnModuleDestroy {
     imageUrls: string[],
     userPrompt?: string,
   ): Promise<{ plan: V2PlanResult, points: number }> {
-    const modelName = 'gemini-3-flash-preview'
+    const modelName = this.resolveDraftPlanningModelName()
     const startedAt = new Date()
+    const aiLogChannel = this.resolvePlanningChannel(modelName)
 
     const userPromptSection = userPrompt
       ? `\n## User Instructions (HIGHEST PRIORITY)\n${userPrompt}\n`
@@ -602,32 +606,14 @@ Generate TikTok metadata for a video based on the user's prompt and images:
 - **IMPORTANT**: Do NOT generate any content featuring children, minors, or anyone appearing under 18. If the user's prompt mentions minors, replace them with adults in the output.
 Return the result as JSON.`
 
-    const model = new ChatGoogleGenerativeAI({
-      model: modelName,
-      apiKey: config.ai.gemini.apiKey,
-      baseUrl: config.ai.gemini.baseUrl,
-      temperature: 1.2, // 提高创意多样性
-    })
-
-    const messageContent: Array<{ type: 'image_url', image_url: string } | { type: 'text', text: string }> = []
-
-    for (const url of imageUrls) {
-      const fullUrl = FileUtil.buildUrl(url)
-      const { base64, mimeType } = await this.fetchImageAsBase64(fullUrl)
-      messageContent.push({
-        type: 'image_url',
-        image_url: `data:${mimeType};base64,${base64}`,
-      })
-    }
-    messageContent.push({ type: 'text', text: prompt })
-
+    const model = this.createDraftPlanningModel(modelName)
     const structuredModel = model.withStructuredOutput(z.toJSONSchema(V2PlanResultSchema), { includeRaw: true })
     const { raw, parsed: structuredResult } = await structuredModel.invoke([
-      new HumanMessage({ content: messageContent }),
+      new HumanMessage({ content: prompt }),
     ])
 
     if (!structuredResult) {
-      throw new Error('V2: No response from Gemini planning step')
+      throw new Error('V2: No response from draft planning step')
     }
 
     const parsed = z.safeParse(V2PlanResultSchema, structuredResult)
@@ -648,7 +634,7 @@ Return the result as JSON.`
         userType,
         type: AiLogType.Agent,
         model: modelName,
-        channel: AiLogChannel.Gemini,
+        channel: aiLogChannel,
         startedAt,
         duration,
         points: consumedPoints,
@@ -658,8 +644,52 @@ Return the result as JSON.`
       })
     }
 
-    this.logger.log({ plan: parsed.data }, 'V2: Plan generated')
+    this.logger.log({ modelName, plan: parsed.data }, 'V2: Plan generated')
     return { plan: parsed.data, points: 0 }
+  }
+
+  private createDraftPlanningModel(modelName: string): ChatOpenAI {
+    const groqApiKey = process.env['GROQ_API_KEY'] || config.ai.grok.apiKey
+    if (!groqApiKey) {
+      throw new AppException(
+        ResponseCode.AiCallFailed,
+        'Missing GROQ_API_KEY for draft planning model. Please set GROQ_API_KEY.',
+      )
+    }
+
+    return new ChatOpenAI({
+      model: modelName,
+      apiKey: groqApiKey,
+      configuration: { baseURL: GROQ_OPENAI_BASE_URL },
+      temperature: 1.2, // 提高创意多样性
+      maxRetries: 1,
+    })
+  }
+
+  private resolveDraftPlanningModelName(): string {
+    const requested = String(process.env['DRAFT_PLANNING_MODEL'] || '').trim()
+    if (requested) {
+      return requested
+    }
+
+    const available = new Set(config.ai.models.chat.map(item => item.name))
+    if (available.has(DEFAULT_DRAFT_PLANNING_MODEL)) {
+      return DEFAULT_DRAFT_PLANNING_MODEL
+    }
+
+    const fallback = config.ai.models.chat.find((item) => {
+      const normalized = item.name.toLowerCase()
+      return normalized.includes('llama') || normalized.includes('mixtral') || normalized.includes('groq')
+    })
+    return fallback?.name || DEFAULT_DRAFT_PLANNING_MODEL
+  }
+
+  private resolvePlanningChannel(modelName: string): AiLogChannel {
+    const normalized = modelName.toLowerCase()
+    if (normalized.includes('llama') || normalized.includes('mixtral') || normalized.includes('groq')) {
+      return AiLogChannel.Grok
+    }
+    return AiLogChannel.NewApi
   }
 
   /**
@@ -1009,8 +1039,9 @@ Return the result as JSON.`
     userPrompt: string,
     imageCount: number,
   ): Promise<{ plan: ImageTextPlanResult, points: number }> {
-    const modelName = 'gemini-3-flash-preview'
+    const modelName = this.resolveDraftPlanningModelName()
     const startedAt = new Date()
+    const aiLogChannel = this.resolvePlanningChannel(modelName)
 
     const prompt = `You are a social media content generation assistant.
 ## Task
@@ -1037,32 +1068,14 @@ Generate metadata and ${imageCount} image prompts for a social media image-text 
 
 Return the result as JSON.`
 
-    const model = new ChatGoogleGenerativeAI({
-      model: modelName,
-      apiKey: config.ai.gemini.apiKey,
-      baseUrl: config.ai.gemini.baseUrl,
-      temperature: 1.2,
-    })
-
-    const messageContent: Array<{ type: 'image_url', image_url: string } | { type: 'text', text: string }> = []
-
-    for (const url of imageUrls) {
-      const fullUrl = FileUtil.buildUrl(url)
-      const { base64, mimeType } = await this.fetchImageAsBase64(fullUrl)
-      messageContent.push({
-        type: 'image_url',
-        image_url: `data:${mimeType};base64,${base64}`,
-      })
-    }
-    messageContent.push({ type: 'text', text: prompt })
-
+    const model = this.createDraftPlanningModel(modelName)
     const structuredModel = model.withStructuredOutput(z.toJSONSchema(ImageTextPlanResultSchema), { includeRaw: true })
     const { raw, parsed: structuredResult } = await structuredModel.invoke([
-      new HumanMessage({ content: messageContent }),
+      new HumanMessage({ content: prompt }),
     ])
 
     if (!structuredResult) {
-      throw new Error('ImageText: No response from Gemini planning step')
+      throw new Error('ImageText: No response from draft planning step')
     }
 
     const parsed = z.safeParse(ImageTextPlanResultSchema, structuredResult)
@@ -1082,7 +1095,7 @@ Return the result as JSON.`
         userType,
         type: AiLogType.Agent,
         model: modelName,
-        channel: AiLogChannel.Gemini,
+        channel: aiLogChannel,
         startedAt,
         duration,
         points: consumedPoints,
@@ -1092,7 +1105,7 @@ Return the result as JSON.`
       })
     }
 
-    this.logger.log({ plan: parsed.data }, 'ImageText: Plan generated')
+    this.logger.log({ modelName, plan: parsed.data }, 'ImageText: Plan generated')
     return { plan: parsed.data, points: 0 }
   }
 
@@ -1120,10 +1133,10 @@ Return the result as JSON.`
           'google-flow-browser-image* requires authenticated Playwright profile. Please login first in Playwright Manager.',
         )
       }
-      return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize, profileId)
+      return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize, profileId, aspectRatio)
     }
 
-    return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize)
+    return this.generateImagesWithGeneralModel(userId, userType, imageModel, imagePrompts, imageSize, undefined, aspectRatio)
   }
 
   private async generateImagesWithGeneralModel(
@@ -1133,9 +1146,14 @@ Return the result as JSON.`
     imagePrompts: string[],
     imageSize?: string,
     profileId?: string,
+    aspectRatio?: string,
   ): Promise<{ urls: string[], points: number }> {
     const urls: string[] = []
     let totalPoints = 0
+    const normalizedAspectRatio
+      = aspectRatio && IMAGE_TEXT_ASPECT_RATIOS.includes(aspectRatio as (typeof IMAGE_TEXT_ASPECT_RATIOS)[number])
+        ? (aspectRatio as (typeof IMAGE_TEXT_ASPECT_RATIOS)[number])
+        : undefined
 
     for (const [index, prompt] of imagePrompts.entries()) {
       this.logger.log(
@@ -1151,6 +1169,7 @@ Return the result as JSON.`
           prompt,
           n: 1,
           ...(profileId ? { profileId } : {}),
+          ...(normalizedAspectRatio ? { aspectRatio: normalizedAspectRatio } : {}),
           ...(imageSize ? { size: imageSize } : {}),
         }),
         {
@@ -1168,11 +1187,23 @@ Return the result as JSON.`
       const generated = Array.isArray((result as { list?: Array<{ url?: string }> })?.list)
         ? (result as { list?: Array<{ url?: string }> }).list || []
         : []
-      const firstUrl = generated.find(item => item?.url)?.url
-      if (!firstUrl) {
+      const generatedUrls = generated
+        .map(item => String(item?.url || '').trim())
+        .filter(url => Boolean(url))
+
+      if (generatedUrls.length === 0) {
         throw new Error(`ImageText: Empty image result for model ${model}`)
       }
-      urls.push(firstUrl)
+
+      const seen = new Set(urls)
+      for (const nextUrl of generatedUrls) {
+        if (seen.has(nextUrl)) {
+          continue
+        }
+        urls.push(nextUrl)
+        seen.add(nextUrl)
+      }
+
       totalPoints += Number((result as { usage?: { points?: number } })?.usage?.points || 0)
     }
 
@@ -1182,10 +1213,9 @@ Return the result as JSON.`
   private async resolveAuthenticatedFlowProfileId(capability: 'image' | 'video'): Promise<string | null> {
     try {
       const profiles = await this.googleFlowBrowserService.listProfiles()
-      const matched = profiles
+      const candidates = profiles
         .filter(profile =>
-          profile.status === 'authenticated'
-          && Array.isArray(profile.capabilities)
+          Array.isArray(profile.capabilities)
           && profile.capabilities.includes(capability),
         )
         .sort((a, b) => {
@@ -1193,7 +1223,15 @@ Return the result as JSON.`
           const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
           return bTime - aTime
         })
-      return matched[0]?.id || null
+
+      for (const profile of candidates) {
+        const verified = await this.googleFlowBrowserService.verifyProfileLogin(profile.id)
+        if (verified.loggedIn && verified.status === 'authenticated') {
+          return profile.id
+        }
+      }
+
+      return null
     }
     catch (error) {
       this.logger.warn(
@@ -1257,19 +1295,6 @@ Return the result as JSON.`
     }
 
     return { urls, points: totalPoints }
-  }
-
-  private async fetchImageAsBase64(url: string): Promise<{ base64: string, mimeType: string }> {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`)
-    }
-    const contentType = response.headers.get('content-type') || 'image/jpeg'
-    const buffer = Buffer.from(await response.arrayBuffer())
-    return {
-      base64: buffer.toString('base64'),
-      mimeType: contentType,
-    }
   }
 
   /**

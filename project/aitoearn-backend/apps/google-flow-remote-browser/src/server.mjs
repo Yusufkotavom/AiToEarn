@@ -23,6 +23,27 @@ let activeUrl = FLOW_URL
 let chromeExitedAt = 0
 let chromeStartedAt = 0
 
+function runPkill(pattern) {
+  return new Promise((resolve) => {
+    const proc = spawn("pkill", ["-f", pattern], {
+      stdio: "ignore",
+    })
+    proc.once("error", () => resolve(false))
+    proc.once("close", (code) => {
+      // pkill: 0=matched and killed, 1=no match.
+      resolve(code === 0 || code === 1)
+    })
+  })
+}
+
+async function killOrphanChromeProcesses() {
+  await Promise.all([
+    runPkill("google-chrome"),
+    runPkill("/opt/google/chrome/chrome"),
+    runPkill("chrome_crashpad"),
+  ])
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
 }
@@ -45,18 +66,63 @@ function cleanupChromeSingletonLocks(userDataDir) {
     "SingletonSocket",
     "SingletonCookie",
   ]
+  let removed = 0
+  const failed = []
   for (const filename of lockFiles) {
     try {
-      fs.rmSync(path.join(userDataDir, filename), { force: true })
+      const targetPath = path.join(userDataDir, filename)
+      fs.rmSync(targetPath, { force: true })
+      removed += 1
     }
-    catch {
-      // ignore stale lock cleanup errors
+    catch (error) {
+      failed.push({
+        file: filename,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
+  return { removed, failed }
+}
+
+function cleanupChromeTmpSockets() {
+  const tmpRoot = "/tmp"
+  let removed = 0
+  const failed = []
+  let entries = []
+  try {
+    entries = fs.readdirSync(tmpRoot, { withFileTypes: true })
+  }
+  catch (error) {
+    return {
+      removed,
+      failed: [{
+        file: tmpRoot,
+        error: error instanceof Error ? error.message : String(error),
+      }],
+    }
+  }
+  for (const entry of entries) {
+    if (!/^com\.google\.Chrome\./.test(entry.name)) {
+      continue
+    }
+    const targetPath = path.join(tmpRoot, entry.name)
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true })
+      removed += 1
+    }
+    catch (error) {
+      failed.push({
+        file: targetPath,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  return { removed, failed }
 }
 
 async function stopChrome() {
   if (!chromeProc) {
+    await killOrphanChromeProcesses()
     return
   }
   const proc = chromeProc
@@ -81,6 +147,7 @@ async function stopChrome() {
       done()
     }, 5000)
   })
+  await killOrphanChromeProcesses()
 }
 
 async function waitForCdpReady(timeoutMs = 15000) {
@@ -102,13 +169,21 @@ async function waitForCdpReady(timeoutMs = 15000) {
   return false
 }
 
-async function openChrome(profileId, url) {
+function isChromeProcessRunning(proc) {
+  return Boolean(proc && proc.exitCode == null && !proc.killed)
+}
+
+async function openChrome(profileId, url, attempt = 1) {
   const nextProfileId = String(profileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID
   const nextUrl = String(url || FLOW_URL).trim() || FLOW_URL
   const userDataDir = profileUserDataDir(nextProfileId)
   ensureDir(userDataDir)
   await stopChrome()
-  cleanupChromeSingletonLocks(userDataDir)
+  const lockCleanup = cleanupChromeSingletonLocks(userDataDir)
+  const tmpCleanup = cleanupChromeTmpSockets()
+  if (lockCleanup.removed || lockCleanup.failed.length || tmpCleanup.removed || tmpCleanup.failed.length) {
+    console.log(`[remote-browser] lock cleanup profile=${nextProfileId} lockRemoved=${lockCleanup.removed} tmpRemoved=${tmpCleanup.removed} lockFailed=${lockCleanup.failed.length} tmpFailed=${tmpCleanup.failed.length}`)
+  }
 
   const args = [
     "--no-sandbox",
@@ -148,14 +223,27 @@ async function openChrome(profileId, url) {
     console.log(`[chrome] process exited (code=${code} signal=${signal}). Session saved to disk in ${userDataDir}`)
   })
 
-  const cdpReady = await waitForCdpReady()
+  // Do not block too long here; UI only needs browser to be opened for VNC.
+  // CDP may take time or be temporarily unavailable while Chrome is still usable.
+  const cdpReady = await waitForCdpReady(5000)
+  const chromeRunning = isChromeProcessRunning(proc)
+  const exitCode = typeof proc.exitCode === "number" ? proc.exitCode : null
   activeProfileId = nextProfileId
   activeUrl = nextUrl
 
-  console.log(`[remote-browser] Chrome opened for profile=${nextProfileId} cdpReady=${cdpReady} userDataDir=${userDataDir}`)
+  if (!chromeRunning && exitCode === 21 && attempt < 2) {
+    console.log(`[remote-browser] Chrome lock detected for profile=${nextProfileId}; retrying once with fresh cleanup`)
+    await new Promise(resolve => setTimeout(resolve, 800))
+    return await openChrome(nextProfileId, nextUrl, attempt + 1)
+  }
+
+  console.log(`[remote-browser] Chrome opened for profile=${nextProfileId} cdpReady=${cdpReady} chromeRunning=${chromeRunning} exitCode=${exitCode} userDataDir=${userDataDir}`)
 
   return {
-    ok: cdpReady,
+    ok: cdpReady || chromeRunning,
+    cdpReady,
+    chromeRunning,
+    exitCode,
     profileId: nextProfileId,
     loginUrl: nextUrl,
     noVncUrl: LOGIN_PUBLIC_URL,
