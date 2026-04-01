@@ -1,6 +1,6 @@
 'use client'
 
-import type { DriveBrowseItem, DriveImportStatus, DriveMediaType, DrivePreviewResult } from '@/api/driveExplorer'
+import type { DriveBrowseItem, DriveImportMode, DriveImportStatus, DriveMediaType, DrivePreviewResult } from '@/api/driveExplorer'
 import type { PromotionPlan } from '@/app/[lng]/brand-promotion/brandPromotionStore/types'
 import { ArrowLeft, ArrowRight, FileImage, FileVideo, FolderOpen, RefreshCw, Star, StarOff } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -44,6 +44,7 @@ export function DriveExplorerPageCore() {
   const [inputPath, setInputPath] = useState('')
   const [currentPath, setCurrentPath] = useState('')
   const [mediaType, setMediaType] = useState<DriveMediaType>('all')
+  const [importMode, setImportMode] = useState<DriveImportMode>('file')
   const [browseItems, setBrowseItems] = useState<DriveBrowseItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | undefined>()
   const [loadingBrowse, setLoadingBrowse] = useState(false)
@@ -55,6 +56,7 @@ export function DriveExplorerPageCore() {
   const [importJobId, setImportJobId] = useState('')
   const [importStatus, setImportStatus] = useState<DriveImportStatus | null>(null)
   const [importing, setImporting] = useState(false)
+  const [detectingFolders, setDetectingFolders] = useState(false)
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({})
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [bookmarkValue, setBookmarkValue] = useState('')
@@ -66,6 +68,11 @@ export function DriveExplorerPageCore() {
   const language = useUserStore(state => state.lang)
 
   const fileItems = useMemo(() => (browseItems || []).filter(item => item.kind === 'file'), [browseItems])
+  const directoryItems = useMemo(() => (browseItems || []).filter(item => item.kind === 'directory'), [browseItems])
+  const selectableItems = useMemo(
+    () => importMode === 'folder' ? directoryItems : fileItems,
+    [directoryItems, fileItems, importMode],
+  )
   const selectedCount = selectedPaths.size
   const apiBaseUrl = useMemo(() => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, ''), [])
   const importPercent = useMemo(() => {
@@ -163,16 +170,66 @@ export function DriveExplorerPageCore() {
   const handleSelectAllVisible = useCallback(() => {
     setSelectedPaths((prev) => {
       const next = new Set(prev)
-      const allSelected = fileItems.length > 0 && fileItems.every(item => next.has(item.path))
+      const allSelected = selectableItems.length > 0 && selectableItems.every(item => next.has(item.path))
       if (allSelected) {
-        fileItems.forEach(item => next.delete(item.path))
+        selectableItems.forEach(item => next.delete(item.path))
       }
       else {
-        fileItems.forEach(item => next.add(item.path))
+        selectableItems.forEach(item => next.add(item.path))
       }
       return next
     })
-  }, [fileItems])
+  }, [selectableItems])
+
+  const handleDetectAllFoldersInRoot = useCallback(async () => {
+    const rootPath = (currentPath || inputPath).trim()
+    if (!rootPath) {
+      toast.error('Path is required')
+      return
+    }
+
+    setDetectingFolders(true)
+    try {
+      const found = new Set<string>()
+      let cursor: string | undefined
+      let loops = 0
+      while (loops < 100) {
+        loops += 1
+        const res = await apiBrowseDrive({
+          path: rootPath,
+          cursor,
+          pageSize: 200,
+          mediaType: 'all',
+        })
+        const list = res?.data?.list || []
+        for (const item of list) {
+          if (item.kind === 'directory') {
+            found.add(item.path)
+          }
+        }
+        cursor = res?.data?.nextCursor
+        if (!cursor) {
+          break
+        }
+      }
+
+      if (found.size === 0) {
+        toast.error('No folders found in this root')
+        return
+      }
+
+      setImportMode('folder')
+      setSelectedPaths(found)
+      setPreviewData(null)
+      toast.success(`Detected ${found.size} folders`)
+    }
+    catch {
+      toast.error('Failed to detect folders')
+    }
+    finally {
+      setDetectingFolders(false)
+    }
+  }, [currentPath, inputPath])
 
   const handleOpenDirectory = useCallback((dirPath: string) => {
     void fetchBrowse(dirPath, undefined, true, true)
@@ -251,7 +308,7 @@ export function DriveExplorerPageCore() {
       return
     }
     if (selectedPaths.size === 0) {
-      toast.error('Please select at least one file')
+      toast.error(importMode === 'folder' ? 'Please select at least one folder' : 'Please select at least one file')
       return
     }
 
@@ -260,6 +317,7 @@ export function DriveExplorerPageCore() {
       const res = await apiPreviewDriveImport({
         groupId,
         paths: Array.from(selectedPaths),
+        mode: importMode,
       })
       if (!res?.data) {
         toast.error(res?.message || 'Preview failed')
@@ -273,7 +331,7 @@ export function DriveExplorerPageCore() {
     finally {
       setPreviewLoading(false)
     }
-  }, [groupId, selectedPaths])
+  }, [groupId, importMode, selectedPaths])
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -304,7 +362,7 @@ export function DriveExplorerPageCore() {
       return
     }
     if (selectedPaths.size === 0) {
-      toast.error('Please select at least one file')
+      toast.error(importMode === 'folder' ? 'Please select at least one folder' : 'Please select at least one file')
       return
     }
 
@@ -313,6 +371,7 @@ export function DriveExplorerPageCore() {
       const res = await apiCreateDriveImport({
         groupId,
         paths: Array.from(selectedPaths),
+        mode: importMode,
       })
       const jobId = res?.data?.jobId
       if (!jobId) {
@@ -329,7 +388,12 @@ export function DriveExplorerPageCore() {
       setImporting(false)
       toast.error('Failed to create import job')
     }
-  }, [groupId, selectedPaths, pollImportStatus])
+  }, [groupId, importMode, selectedPaths, pollImportStatus])
+
+  useEffect(() => {
+    setSelectedPaths(new Set())
+    setPreviewData(null)
+  }, [importMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -495,7 +559,7 @@ export function DriveExplorerPageCore() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             <Input
-              className="md:col-span-6"
+              className="md:col-span-4"
               placeholder="Absolute path, e.g. /mnt/social-drive"
               value={inputPath}
               onChange={e => setInputPath(e.target.value)}
@@ -508,6 +572,15 @@ export function DriveExplorerPageCore() {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="video">Video</SelectItem>
                 <SelectItem value="img">Image</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={importMode} onValueChange={value => setImportMode(value as DriveImportMode)}>
+              <SelectTrigger className="md:col-span-2">
+                <SelectValue placeholder="Import mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="file">Import by File</SelectItem>
+                <SelectItem value="folder">Import by Folder</SelectItem>
               </SelectContent>
             </Select>
             <Select value={groupId} onValueChange={setGroupId}>
@@ -558,8 +631,15 @@ export function DriveExplorerPageCore() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex gap-2">
-            <Button variant="outline" onClick={handleSelectAllVisible} disabled={fileItems.length === 0}>
-              Toggle Select Visible Files
+            <Button variant="outline" onClick={handleSelectAllVisible} disabled={selectableItems.length === 0}>
+              {importMode === 'folder' ? 'Toggle Select Visible Folders' : 'Toggle Select Visible Files'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDetectAllFoldersInRoot}
+              disabled={detectingFolders || loadingBrowse}
+            >
+              {detectingFolders ? 'Detecting Folders...' : 'Detect All Folders in Root'}
             </Button>
             <Button variant="outline" onClick={handlePreview} disabled={previewLoading || selectedCount === 0}>
               {previewLoading ? 'Preparing Preview...' : 'Preview Import'}
@@ -577,6 +657,8 @@ export function DriveExplorerPageCore() {
             Current Path:
             {' '}
             <span className="font-mono">{currentPath || '-'}</span>
+            {' | Mode: '}
+            {importMode}
             {' | '}
             History:
             {' '}
@@ -613,7 +695,8 @@ export function DriveExplorerPageCore() {
                           )
                         : <span className="font-medium break-all">{item.name}</span>}
 
-                      {item.kind === 'file' && (
+                      {((importMode === 'file' && item.kind === 'file')
+                        || (importMode === 'folder' && item.kind === 'directory')) && (
                         <Checkbox
                           checked={selectedPaths.has(item.path)}
                           onCheckedChange={() => togglePath(item.path)}
@@ -655,7 +738,8 @@ export function DriveExplorerPageCore() {
                 {(browseItems || []).map(item => (
                   <TableRow key={item.path}>
                     <TableCell>
-                      {item.kind === 'file' && (
+                      {((importMode === 'file' && item.kind === 'file')
+                        || (importMode === 'folder' && item.kind === 'directory')) && (
                         <Checkbox
                           checked={selectedPaths.has(item.path)}
                           onCheckedChange={() => togglePath(item.path)}
@@ -718,6 +802,12 @@ export function DriveExplorerPageCore() {
               {previewData.list.map(item => (
                 <div key={item.path} className="text-xs py-1 border-b last:border-b-0">
                   <div className="font-mono break-all">{item.path}</div>
+                  {item.resolvedPath && item.resolvedPath !== item.path && (
+                    <div className="font-mono break-all text-muted-foreground">
+                      resolved=
+                      {item.resolvedPath}
+                    </div>
+                  )}
                   <div>
                     valid=
                     {String(item.valid)}

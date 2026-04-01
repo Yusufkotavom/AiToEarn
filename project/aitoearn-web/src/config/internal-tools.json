@@ -1,0 +1,16 @@
+[
+  {
+    "id": "gradio-local",
+    "title": "Gradio Local",
+    "url": "http://127.0.0.1:7860",
+    "description": "Local Gradio app",
+    "enabled": true
+  },
+  {
+    "id": "nextjs-local",
+    "title": "Next.js Local",
+    "url": "http://127.0.0.1:3000",
+    "description": "Local Next.js app",
+    "enabled": true
+  }
+]

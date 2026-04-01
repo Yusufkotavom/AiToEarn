@@ -10,9 +10,10 @@ import {
   HardDrive,
   History,
   Home,
+  PanelsTopLeft,
   Sparkles,
   Upload,
-} from 'lucide-react'
+  } from 'lucide-react'
 
 export interface IRouterDataItem {
   // 导航标题
@@ -64,6 +65,12 @@ export const routerData: IRouterDataItem[] = [
     translationKey: 'driveExplorer',
     path: '/drive-explorer',
     icon: <HardDrive size={20} />,
+  },
+  {
+    name: 'Internal Tools',
+    translationKey: 'internalToolsHub',
+    path: '/internal-tools',
+    icon: <PanelsTopLeft size={20} />,
   },
   {
     name: 'Content Manager',

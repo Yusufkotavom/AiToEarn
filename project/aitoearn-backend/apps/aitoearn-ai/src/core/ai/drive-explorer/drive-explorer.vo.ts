@@ -18,8 +18,10 @@ export interface DriveBrowseVo {
 }
 
 export interface DrivePreviewItemVo {
+  sourceKind?: 'file' | 'directory'
   path: string
   name: string
+  resolvedPath?: string
   mediaType: 'video' | 'img'
   size: number
   title: string

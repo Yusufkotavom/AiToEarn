@@ -26,10 +26,24 @@ interface ParsedMetadata {
   tags: string[]
 }
 
+type DriveImportMode = 'file' | 'folder'
+
+interface ResolvedImportSource {
+  sourceKind: 'file' | 'directory'
+  sourcePath: string
+  mediaPath: string
+  mediaType: MediaKind
+  mediaSize: number
+  mediaMtimeMs: number
+  metadata: ParsedMetadata
+  thumbnailPath?: string
+}
+
 interface DriveImportJob {
   jobId: string
   userId: string
   groupId: string
+  mode: DriveImportMode
   status: 'queued' | 'running' | 'completed' | 'failed'
   total: number
   processed: number
@@ -138,7 +152,7 @@ export class DriveExplorerService {
     let duplicateCount = 0
 
     for (const inputPath of dto.paths) {
-      const item = await this.buildPreviewItem(userId, inputPath)
+      const item = await this.buildPreviewItem(userId, inputPath, dto.mode || 'file')
       if (item.valid) {
         validCount++
       }
@@ -166,6 +180,7 @@ export class DriveExplorerService {
       jobId,
       userId,
       groupId: dto.groupId,
+      mode: dto.mode || 'file',
       status: 'queued',
       total: dto.paths.length,
       processed: 0,
@@ -178,7 +193,7 @@ export class DriveExplorerService {
     }
 
     this.jobs.set(jobId, job)
-    void this.runImportJob(jobId, dto.paths)
+    void this.runImportJob(jobId, dto.paths, dto.mode || 'file')
 
     return { jobId }
   }
@@ -218,7 +233,7 @@ export class DriveExplorerService {
     }
   }
 
-  private async runImportJob(jobId: string, sourcePaths: string[]): Promise<void> {
+  private async runImportJob(jobId: string, sourcePaths: string[], mode: DriveImportMode): Promise<void> {
     const job = this.jobs.get(jobId)
     if (!job) {
       return
@@ -229,7 +244,7 @@ export class DriveExplorerService {
 
     try {
       for (const sourcePath of sourcePaths) {
-        const result = await this.importSingle(job.userId, job.groupId, sourcePath)
+        const result = await this.importSingle(job.userId, job.groupId, sourcePath, mode)
         job.items.push(result)
 
         job.processed += 1
@@ -255,45 +270,59 @@ export class DriveExplorerService {
     }
   }
 
-  private async importSingle(userId: string, groupId: string, sourcePath: string): Promise<DriveImportItemVo> {
+  private async importSingle(
+    userId: string,
+    groupId: string,
+    sourcePath: string,
+    mode: DriveImportMode,
+  ): Promise<DriveImportItemVo> {
     try {
-      const absPath = await this.validateAbsolutePath(sourcePath)
-      const fileStat = await stat(absPath)
-      if (!fileStat.isFile()) {
-        return { path: sourcePath, status: 'failed', reason: 'Not a file' }
-      }
-
-      const mediaType = this.detectMediaType(absPath)
-      if (!mediaType) {
-        return { path: sourcePath, status: 'failed', reason: 'Unsupported media type' }
-      }
-
-      const checksum = await this.computeFileChecksum(absPath)
+      const resolved = await this.resolveImportSource(sourcePath, mode)
+      const checksum = await this.computeFileChecksum(resolved.mediaPath)
       const duplicate = await this.driveImportRecordModel.findOne({ userId, checksum }).lean().exec()
       if (duplicate) {
         return { path: sourcePath, status: 'skipped_duplicate', reason: 'Duplicate file checksum' }
       }
 
-      const metadata = await this.readMetadataForMedia(absPath)
-      const filename = path.basename(absPath)
+      const metadata = resolved.metadata
+      const filename = path.basename(resolved.mediaPath)
 
       const upload = await this.assetsService.uploadFromStream(
         userId,
-        createReadStream(absPath),
+        createReadStream(resolved.mediaPath),
         {
           type: AssetType.UserMedia,
           mimeType: this.detectMimeType(filename),
           filename,
-          size: fileStat.size,
+          size: resolved.mediaSize,
         },
       )
+
+      let coverUrl: string | undefined
+      if (resolved.mediaType === 'img') {
+        coverUrl = upload.asset.path
+      }
+      else if (resolved.thumbnailPath) {
+        const thumbnailStat = await stat(resolved.thumbnailPath)
+        const thumbnailUpload = await this.assetsService.uploadFromStream(
+          userId,
+          createReadStream(resolved.thumbnailPath),
+          {
+            type: AssetType.VideoThumbnail,
+            mimeType: this.detectMimeType(resolved.thumbnailPath),
+            filename: path.basename(resolved.thumbnailPath),
+            size: thumbnailStat.size,
+          },
+        )
+        coverUrl = thumbnailUpload.asset.path
+      }
 
       const title = metadata.title?.trim() || path.parse(filename).name
       const desc = metadata.desc?.trim()
         || await this.generateAutoCaption({
           userId,
           title,
-          mediaType,
+          mediaType: resolved.mediaType,
           tags: metadata.tags,
         })
         || `Imported from drive: ${path.parse(filename).name}`
@@ -302,30 +331,35 @@ export class DriveExplorerService {
         userId,
         userType: UserType.User,
         groupId,
-        coverUrl: mediaType === 'img' ? upload.asset.path : undefined,
-        mediaList: [{ url: upload.asset.path, type: mediaType === 'video' ? MediaType.VIDEO : MediaType.IMG }],
+        coverUrl,
+        mediaList: [{
+          url: upload.asset.path,
+          type: resolved.mediaType === 'video' ? MediaType.VIDEO : MediaType.IMG,
+          ...(coverUrl ? { thumbUrl: coverUrl } : {}),
+        }],
         title,
         desc,
         topics: metadata.tags,
         option: {
           source: {
             kind: 'drive',
-            path: absPath,
+            path: resolved.sourcePath,
+            mediaPath: resolved.mediaPath,
             checksum,
             metadataPath: metadata.metadataPath,
           },
           autoCaption: true,
         },
-        type: mediaType === 'video' ? MaterialType.VIDEO : MaterialType.ARTICLE,
+        type: resolved.mediaType === 'video' ? MaterialType.VIDEO : MaterialType.ARTICLE,
         status: MaterialStatus.SUCCESS,
       })
 
       await this.driveImportRecordModel.create({
         userId,
-        sourcePath: absPath,
+        sourcePath: resolved.mediaPath,
         checksum,
-        fileSize: fileStat.size,
-        mtimeMs: fileStat.mtimeMs,
+        fileSize: resolved.mediaSize,
+        mtimeMs: resolved.mediaMtimeMs,
         materialId: material.id || (material as any)._id,
       })
 
@@ -351,29 +385,21 @@ export class DriveExplorerService {
     }
   }
 
-  private async buildPreviewItem(userId: string, sourcePath: string): Promise<DrivePreviewItemVo> {
+  private async buildPreviewItem(userId: string, sourcePath: string, mode: DriveImportMode): Promise<DrivePreviewItemVo> {
     try {
-      const absPath = await this.validateAbsolutePath(sourcePath)
-      const fileStat = await stat(absPath)
-      if (!fileStat.isFile()) {
-        return this.invalidPreview(sourcePath, 'Not a file')
-      }
-
-      const mediaType = this.detectMediaType(absPath)
-      if (!mediaType) {
-        return this.invalidPreview(sourcePath, 'Unsupported media type')
-      }
-
-      const checksum = await this.computeFileChecksum(absPath)
+      const resolved = await this.resolveImportSource(sourcePath, mode)
+      const checksum = await this.computeFileChecksum(resolved.mediaPath)
       const duplicate = await this.driveImportRecordModel.exists({ userId, checksum })
-      const metadata = await this.readMetadataForMedia(absPath)
-      const fallbackTitle = path.parse(path.basename(absPath)).name
+      const metadata = resolved.metadata
+      const fallbackTitle = path.parse(path.basename(resolved.mediaPath)).name
 
       return {
-        path: absPath,
-        name: path.basename(absPath),
-        mediaType,
-        size: fileStat.size,
+        sourceKind: resolved.sourceKind,
+        path: resolved.sourcePath,
+        name: path.basename(resolved.sourcePath),
+        resolvedPath: resolved.mediaPath,
+        mediaType: resolved.mediaType,
+        size: resolved.mediaSize,
         title: metadata.title?.trim() || fallbackTitle,
         desc: metadata.desc?.trim() || `Imported from drive: ${fallbackTitle}`,
         tags: metadata.tags,
@@ -390,6 +416,7 @@ export class DriveExplorerService {
 
   private invalidPreview(sourcePath: string, reason: string): DrivePreviewItemVo {
     return {
+      sourceKind: 'file',
       path: sourcePath,
       name: path.basename(sourcePath),
       mediaType: 'video',
@@ -415,6 +442,125 @@ export class DriveExplorerService {
     }
 
     return inputPath
+  }
+
+  private async resolveImportSource(sourcePath: string, mode: DriveImportMode): Promise<ResolvedImportSource> {
+    const absPath = await this.validateAbsolutePath(sourcePath)
+    const sourceStat = await stat(absPath)
+
+    if (mode === 'folder') {
+      if (!sourceStat.isDirectory()) {
+        throw new AppException(ResponseCode.ValidationFailed, 'Path must be a directory in folder mode')
+      }
+      return this.resolveFromDirectory(absPath)
+    }
+
+    if (!sourceStat.isFile()) {
+      throw new AppException(ResponseCode.ValidationFailed, 'Path must be a file')
+    }
+
+    const mediaType = this.detectMediaType(absPath)
+    if (!mediaType) {
+      throw new AppException(ResponseCode.ValidationFailed, 'Unsupported media type')
+    }
+
+    const metadata = await this.readMetadataForMedia(absPath)
+    const thumbnailPath = mediaType === 'video'
+      ? await this.findNeighborThumbnail(absPath)
+      : undefined
+    return {
+      sourceKind: 'file',
+      sourcePath: absPath,
+      mediaPath: absPath,
+      mediaType,
+      mediaSize: sourceStat.size,
+      mediaMtimeMs: sourceStat.mtimeMs,
+      metadata,
+      thumbnailPath,
+    }
+  }
+
+  private async resolveFromDirectory(dirPath: string): Promise<ResolvedImportSource> {
+    const dirents = await readdir(dirPath, { withFileTypes: true })
+    const filePaths = dirents
+      .filter(dirent => dirent.isFile())
+      .map(dirent => path.join(dirPath, dirent.name))
+
+    const videoPaths = filePaths.filter(filePath => this.detectMediaType(filePath) === 'video')
+    const imagePaths = filePaths.filter(filePath => this.detectMediaType(filePath) === 'img')
+
+    const mediaPath = videoPaths.length > 0
+      ? await this.pickLargestFile(videoPaths)
+      : (imagePaths.length > 0 ? await this.pickLargestFile(imagePaths) : undefined)
+    if (!mediaPath) {
+      throw new AppException(ResponseCode.ValidationFailed, 'No media file found in directory')
+    }
+
+    const mediaType = this.detectMediaType(mediaPath)
+    if (!mediaType) {
+      throw new AppException(ResponseCode.ValidationFailed, 'Unsupported media type')
+    }
+
+    const mediaStat = await stat(mediaPath)
+    const thumbnailPath = mediaType === 'video' && imagePaths.length > 0
+      ? await this.pickPreferredThumbnail(mediaPath, imagePaths)
+      : undefined
+
+    const metadata = await this.readMetadataForDirectory(dirPath, mediaPath)
+
+    return {
+      sourceKind: 'directory',
+      sourcePath: dirPath,
+      mediaPath,
+      mediaType,
+      mediaSize: mediaStat.size,
+      mediaMtimeMs: mediaStat.mtimeMs,
+      metadata,
+      thumbnailPath,
+    }
+  }
+
+  private async pickLargestFile(paths: string[]): Promise<string> {
+    let selectedPath = paths[0]
+    let selectedSize = -1
+    for (const filePath of paths) {
+      const fileStat = await stat(filePath)
+      if (fileStat.size > selectedSize) {
+        selectedPath = filePath
+        selectedSize = fileStat.size
+      }
+    }
+    return selectedPath
+  }
+
+  private async pickPreferredThumbnail(mediaPath: string, imagePaths: string[]): Promise<string | undefined> {
+    const parsed = path.parse(mediaPath)
+    const sameBasename = imagePaths.find((imagePath) => {
+      const imageParsed = path.parse(imagePath)
+      return imageParsed.name.toLowerCase() === parsed.name.toLowerCase()
+    })
+    if (sameBasename) {
+      return sameBasename
+    }
+    if (imagePaths.length === 0) {
+      return undefined
+    }
+    return this.pickLargestFile(imagePaths)
+  }
+
+  private async findNeighborThumbnail(mediaPath: string): Promise<string | undefined> {
+    const dirPath = path.dirname(mediaPath)
+    const dirents = await readdir(dirPath, { withFileTypes: true })
+    const imagePaths = dirents
+      .filter(dirent => dirent.isFile())
+      .map(dirent => path.join(dirPath, dirent.name))
+      .filter(filePath => this.detectMediaType(filePath) === 'img')
+
+    if (imagePaths.length === 0) {
+      return undefined
+    }
+
+    return this.pickPreferredThumbnail(mediaPath, imagePaths)
   }
 
   private detectMediaType(filePath: string): MediaKind | undefined {
@@ -457,6 +603,64 @@ export class DriveExplorerService {
         title,
         desc,
         tags,
+      }
+    }
+    catch {
+      return {
+        status: 'invalid',
+        metadataPath,
+        tags: [],
+      }
+    }
+  }
+
+  private async readMetadataForDirectory(dirPath: string, mediaPath: string): Promise<ParsedMetadata> {
+    const parsedMedia = path.parse(mediaPath)
+    const candidates = [
+      path.join(dirPath, 'metadata.json'),
+      path.join(dirPath, `${parsedMedia.name}.json`),
+    ]
+
+    for (const metadataPath of candidates) {
+      const parsed = await this.tryReadMetadataFile(metadataPath)
+      if (parsed) {
+        return parsed
+      }
+    }
+
+    const dirents = await readdir(dirPath, { withFileTypes: true })
+    const jsonFiles = dirents
+      .filter(dirent => dirent.isFile() && path.extname(dirent.name).toLowerCase() === '.json')
+      .map(dirent => path.join(dirPath, dirent.name))
+      .filter(filePath => !candidates.includes(filePath))
+
+    for (const metadataPath of jsonFiles) {
+      const parsed = await this.tryReadMetadataFile(metadataPath)
+      if (parsed) {
+        return parsed
+      }
+    }
+
+    return { status: 'missing', tags: [] }
+  }
+
+  private async tryReadMetadataFile(metadataPath: string): Promise<ParsedMetadata | null> {
+    try {
+      await access(metadataPath)
+    }
+    catch {
+      return null
+    }
+
+    try {
+      const raw = await readFile(metadataPath, 'utf-8')
+      const parsed: any = JSON.parse(raw)
+      return {
+        status: 'found',
+        metadataPath,
+        title: this.pickString(parsed.title, parsed.name),
+        desc: this.pickString(parsed.desc, parsed.description, parsed.caption),
+        tags: this.normalizeTags(parsed.tags),
       }
     }
     catch {

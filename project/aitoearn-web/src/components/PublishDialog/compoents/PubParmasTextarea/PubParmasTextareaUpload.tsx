@@ -683,6 +683,45 @@ const PubParmasTextareaUpload = memo(
               )}
             </div>
 
+            {/* 常驻操作按钮（避免仅靠 hover 菜单导致触屏/某些环境不可见） */}
+            {!importLoading && (
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-2 z-30 flex items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur px-1 py-1">
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs cursor-pointer rounded hover:bg-accent transition-colors whitespace-nowrap"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    triggerFileInput()
+                  }}
+                  data-testid="publish-upload-local-inline-button"
+                >
+                  {t('upload.uploadLocal')}
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs cursor-pointer rounded hover:bg-accent transition-colors whitespace-nowrap"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setMaterialSelectionOpen(true)
+                  }}
+                  data-testid="publish-select-material-inline-button"
+                >
+                  {t('actions.selectMaterial')}
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs cursor-pointer rounded hover:bg-accent transition-colors whitespace-nowrap"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void openAiGeneratedPicker()
+                  }}
+                  data-testid="publish-select-ai-generated-inline-button"
+                >
+                  Select AI Generated
+                </button>
+              </div>
+            )}
+
             {/* Hover 菜单 */}
             {!importLoading && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">

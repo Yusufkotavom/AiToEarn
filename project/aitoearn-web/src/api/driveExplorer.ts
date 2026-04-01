@@ -1,6 +1,7 @@
 import http from '@/utils/request'
 
 export type DriveMediaType = 'video' | 'img' | 'all'
+export type DriveImportMode = 'file' | 'folder'
 
 export interface DriveBrowseItem {
   name: string
@@ -22,8 +23,10 @@ export interface DriveBrowseResult {
 }
 
 export interface DrivePreviewItem {
+  sourceKind?: 'file' | 'directory'
   path: string
   name: string
+  resolvedPath?: string
   mediaType: 'video' | 'img'
   size: number
   title: string
@@ -76,6 +79,7 @@ export function apiBrowseDrive(data: {
 export function apiPreviewDriveImport(data: {
   groupId: string
   paths: string[]
+  mode?: DriveImportMode
 }) {
   return http.post<DrivePreviewResult>('ai/drive-explorer/preview', data)
 }
@@ -83,6 +87,7 @@ export function apiPreviewDriveImport(data: {
 export function apiCreateDriveImport(data: {
   groupId: string
   paths: string[]
+  mode?: DriveImportMode
 }) {
   return http.post<{ jobId: string }>('ai/drive-explorer/import', data)
 }
