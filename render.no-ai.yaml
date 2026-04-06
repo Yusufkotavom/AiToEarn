@@ -1,0 +1,67 @@
+# Render Blueprint (NO-AI)
+# Deploy only aitoearn-server (frontend expected on Vercel).
+# Storage uses Cloudflare R2 via ASSETS_CONFIG.
+
+services:
+  - type: web
+    name: aitoearn-server
+    runtime: docker
+    dockerfilePath: project/aitoearn-backend/apps/aitoearn-server/Dockerfile
+    dockerContext: project/aitoearn-backend
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Core
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: aitoearn-server
+      - key: APP_DOMAIN
+        value: api.yourdomain.com
+      - key: JWT_SECRET
+        sync: false
+      - key: INTERNAL_TOKEN
+        sync: false
+
+      # External MongoDB / Redis
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_CHANNEL_URI
+        value: ""
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
+
+      # Cloudflare R2 (required)
+      # One-line JSON string:
+      # {"provider":"s3","region":"auto","bucketName":"...","endpoint":"https://<account>.r2.cloudflarestorage.com","publicEndpoint":"https://<public-domain>","cdnEndpoint":"https://<cdn-domain>","accessKeyId":"...","secretAccessKey":"...","forcePathStyle":true}
+      - key: ASSETS_CONFIG
+        sync: false
+
+      # No-AI mode: server points to itself so internal AI calls are disabled-safe
+      - key: AI_URL
+        value: "http://127.0.0.1:3010"
+
+      # Optional mail / oauth / relay
+      - key: MAIL_HOST
+        value: smtp.resend.com
+      - key: MAIL_PORT
+        value: "465"
+      - key: MAIL_SECURE
+        value: "true"
+      - key: MAIL_FROM
+        value: "AiToEarn <noreply@yourdomain.com>"
+      - key: MAIL_USER
+        value: resend
+      - key: MAIL_PASS
+        value: ""
+      - key: RELAY_SERVER_URL
+        value: "https://aitoearn.ai/api"
+      - key: RELAY_API_KEY
+        value: ""
+      - key: RELAY_CALLBACK_URL
+        value: "https://api.yourdomain.com/api/plat/relay-callback"

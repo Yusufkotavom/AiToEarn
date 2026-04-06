@@ -1,0 +1,144 @@
+# Render Blueprint (WITH-AI)
+# Deploy aitoearn-server + aitoearn-ai (frontend expected on Vercel).
+# Storage uses Cloudflare R2 via ASSETS_CONFIG.
+
+services:
+  - type: web
+    name: aitoearn-ai
+    runtime: docker
+    dockerfilePath: project/aitoearn-backend/apps/aitoearn-ai/Dockerfile
+    dockerContext: project/aitoearn-backend
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Core
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: aitoearn-ai
+      - key: JWT_SECRET
+        sync: false
+      - key: INTERNAL_TOKEN
+        sync: false
+
+      # External MongoDB / Redis
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
+
+      # Cloudflare R2 for AI outputs
+      - key: ASSETS_CONFIG
+        sync: false
+
+      # Server internal URL (update if your Render private URL differs)
+      - key: SERVER_URL
+        value: "http://aitoearn-server:3002"
+
+      # AI provider configs (set what you use)
+      - key: OPENAI_API_KEY
+        value: ""
+      - key: OPENAI_BASE_URL
+        value: "https://api.openai.com/v1"
+      - key: ANTHROPIC_API_KEY
+        value: ""
+      - key: ANTHROPIC_BASE_URL
+        value: "https://api.anthropic.com"
+      - key: GROQ_API_KEY
+        value: ""
+      - key: GROK_API_KEY
+        value: ""
+      - key: GEMINI_KEY_PAIRS
+        value: "[]"
+      - key: GEMINI_LOCATION
+        value: "us-central1"
+      - key: AICSO_API_KEY
+        value: ""
+      - key: AICSO_BASE_URL
+        value: ""
+      - key: AI_PROXY_URL
+        value: ""
+
+      # Optional Pollinations
+      - key: POLLINATIONS_IMAGE_BASE_URL
+        value: "https://gen.pollinations.ai/image"
+      - key: POLLINATIONS_VIDEO_BASE_URL
+        value: "https://gen.pollinations.ai/video"
+      - key: POLLINATIONS_APP_URL
+        value: "https://api.piiblog.net"
+      - key: POLLINATIONS_SECRET_KEY
+        value: ""
+      - key: POLLINATIONS_PUBLISHABLE_KEY
+        value: ""
+
+      # Google Flow browser bridge (optional)
+      - key: GOOGLE_FLOW_BROWSER_BASE_URL
+        value: ""
+      - key: GOOGLE_FLOW_BROWSER_API_KEY
+        value: ""
+
+  - type: web
+    name: aitoearn-server
+    runtime: docker
+    dockerfilePath: project/aitoearn-backend/apps/aitoearn-server/Dockerfile
+    dockerContext: project/aitoearn-backend
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # Core
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: APP_NAME
+        value: aitoearn-server
+      - key: APP_DOMAIN
+        value: api.yourdomain.com
+      - key: JWT_SECRET
+        sync: false
+      - key: INTERNAL_TOKEN
+        sync: false
+
+      # External MongoDB / Redis
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_CHANNEL_URI
+        value: ""
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_TLS
+        value: "true"
+
+      # Cloudflare R2 for server uploads/assets
+      - key: ASSETS_CONFIG
+        sync: false
+
+      # Internal AI URL (update if your Render private URL differs)
+      - key: AI_URL
+        value: "http://aitoearn-ai:3010"
+
+      # Optional mail / oauth / relay
+      - key: MAIL_HOST
+        value: smtp.resend.com
+      - key: MAIL_PORT
+        value: "465"
+      - key: MAIL_SECURE
+        value: "true"
+      - key: MAIL_FROM
+        value: "AiToEarn <noreply@yourdomain.com>"
+      - key: MAIL_USER
+        value: resend
+      - key: MAIL_PASS
+        value: ""
+      - key: RELAY_SERVER_URL
+        value: "https://aitoearn.ai/api"
+      - key: RELAY_API_KEY
+        value: ""
+      - key: RELAY_CALLBACK_URL
+        value: "https://api.yourdomain.com/api/plat/relay-callback"
