@@ -1,6 +1,5 @@
-# Render Blueprint for AiToEarn (no-AI backend)
-# Frontend is assumed to be deployed separately (e.g. Vercel).
-# This only deploys the NestJS backend service.
+# Render Blueprint for AiToEarn server (frontend deploys separately on Vercel)
+# This blueprint deploys only NestJS backend service.
 
 services:
   - type: web
@@ -17,7 +16,7 @@ services:
         value: production
       - key: APP_ENV
         value: production
-      - key: SERVER_APP_NAME
+      - key: APP_NAME
         value: aitoearn-server
       - key: APP_DOMAIN
         value: api.yourdomain.com
@@ -40,12 +39,13 @@ services:
         value: "rediss://default:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT"
 
       # Assets storage (S3-compatible, e.g. Cloudflare R2)
-      - key: SERVER_ASSETS_CONFIG
+      # NOTE: backend reads ASSETS_CONFIG (not SERVER_ASSETS_CONFIG)
+      - key: ASSETS_CONFIG
         value: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://<account>.r2.cloudflarestorage.com","publicEndpoint":"https://<account>.r2.cloudflarestorage.com","cdnEndpoint":"https://<cdn-domain>","accessKeyId":"<access-key>","secretAccessKey":"<secret>","forcePathStyle":true}'
 
-      # Disable AI in frontend (if you still run Next.js elsewhere)
-      - key: NEXT_PUBLIC_DISABLE_AI
-        value: "1"
+      # AI bridge URL (keep internal placeholder for no-AI mode)
+      - key: AI_URL
+        value: "http://127.0.0.1:3010"
 
       # Email (optional)
       - key: MAIL_HOST
