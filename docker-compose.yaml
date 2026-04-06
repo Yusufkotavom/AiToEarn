@@ -206,10 +206,14 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       APP_ENV: ${APP_ENV:-production}
       APP_NAME: ${AI_APP_NAME:-aitoearn-ai}
+      MONGO_URI: ${MONGO_URI:-}
+      MONGODB_URI: ${MONGODB_URI:-}
       MONGODB_HOST: ${MONGODB_HOST:-mongodb}
       MONGODB_PORT: ${MONGODB_PORT:-27017}
       MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD:-password}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_TLS: ${REDIS_TLS:-}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-password}
@@ -281,10 +285,13 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_NAME: ${SERVER_APP_NAME:-aitoearn-server}
       APP_DOMAIN: ${APP_DOMAIN:-api.piiblog.net}
+      MONGODB_URI: ${MONGODB_URI:-${MONGO_URI:-}}
       MONGODB_HOST: ${MONGODB_HOST:-mongodb}
       MONGODB_PORT: ${MONGODB_PORT:-27017}
       MONGODB_USERNAME: ${MONGODB_USERNAME:-admin}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD:-password}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_TLS: ${REDIS_TLS:-}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-password}

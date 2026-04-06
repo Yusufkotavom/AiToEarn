@@ -2,9 +2,13 @@ const {
   REDIS_HOST,
   REDIS_PORT,
   REDIS_PASSWORD,
+  REDIS_URL,
+  REDIS_TLS,
 } = process.env
 
 const {
+  MONGO_URI,
+  MONGODB_URI,
   MONGODB_HOST,
   MONGODB_PORT,
   MONGODB_USERNAME,
@@ -108,6 +112,56 @@ function parseAssetsConfig() {
   return parsed
 }
 
+function parseRedisUrl() {
+  if (!REDIS_URL) {
+    return null
+  }
+  try {
+    const url = new URL(REDIS_URL)
+    const username = url.username ? decodeURIComponent(url.username) : undefined
+    const password = url.password ? decodeURIComponent(url.password) : undefined
+    const useTls = url.protocol === 'rediss:'
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 6379,
+      username: username || (password ? 'default' : undefined),
+      password,
+      tls: useTls ? {} : undefined,
+    }
+  }
+  catch (err) {
+    console.error('Invalid REDIS_URL:', err)
+    return null
+  }
+}
+
+function parseBoolean(value) {
+  return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase())
+}
+
+function buildMongoUri() {
+  if (MONGODB_URI) {
+    return MONGODB_URI
+  }
+  if (MONGO_URI) {
+    return MONGO_URI
+  }
+
+  const user = MONGODB_USERNAME || ''
+  const pass = encodeURIComponent(MONGODB_PASSWORD || '')
+  const auth = user ? `${user}:${pass}@` : ''
+  return `mongodb://${auth}${MONGODB_HOST}:${MONGODB_PORT}/?authSource=admin&directConnection=true`
+}
+
+const redisFromUrl = parseRedisUrl()
+const redisBaseConfig = redisFromUrl || {
+  host: REDIS_HOST,
+  port: Number(REDIS_PORT),
+  username: 'default',
+  password: REDIS_PASSWORD,
+  tls: parseBoolean(REDIS_TLS) ? {} : undefined,
+}
+
 module.exports = {
   port: 3010,
   logger: {
@@ -118,21 +172,15 @@ module.exports = {
     },
   },
   redis: {
-    host: REDIS_HOST,
-    port: Number(REDIS_PORT),
-    username: 'default',
-    password: REDIS_PASSWORD,
+    ...redisBaseConfig,
   },
   redlock: {
     redis: {
-      host: REDIS_HOST,
-      port: Number(REDIS_PORT),
-      username: 'default',
-      password: REDIS_PASSWORD,
+      ...redisBaseConfig,
     },
   },
   mongodb: {
-    uri: `mongodb://${MONGODB_USERNAME}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}:${MONGODB_PORT}/?authSource=admin&directConnection=true`,
+    uri: buildMongoUri(),
     dbName: 'aitoearn',
   },
   auth: {
