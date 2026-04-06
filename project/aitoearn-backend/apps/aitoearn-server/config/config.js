@@ -2,6 +2,8 @@ const {
   REDIS_HOST,
   REDIS_PORT,
   REDIS_PASSWORD,
+  REDIS_URL,
+  REDIS_TLS,
 } = process.env
 
 const {
@@ -9,6 +11,8 @@ const {
   MONGODB_PORT,
   MONGODB_USERNAME,
   MONGODB_PASSWORD,
+  MONGODB_URI,
+  MONGODB_CHANNEL_URI,
 } = process.env
 
 const {
@@ -106,6 +110,59 @@ function parseAssetsConfig() {
   return parsed
 }
 
+function buildMongoUri() {
+  if (MONGODB_URI) {
+    return MONGODB_URI
+  }
+
+  const user = MONGODB_USERNAME || ''
+  const pass = encodeURIComponent(MONGODB_PASSWORD || '')
+  const auth = user ? `${user}:${pass}@` : ''
+  return `mongodb://${auth}${MONGODB_HOST}:${MONGODB_PORT}/?authSource=admin&directConnection=true`
+}
+
+function buildChannelMongoUri() {
+  if (MONGODB_CHANNEL_URI) {
+    return MONGODB_CHANNEL_URI
+  }
+  if (MONGODB_URI) {
+    return MONGODB_URI
+  }
+  return buildMongoUri()
+}
+
+function parseRedisUrl() {
+  if (!REDIS_URL) {
+    return null
+  }
+  try {
+    const url = new URL(REDIS_URL)
+    const username = url.username ? decodeURIComponent(url.username) : undefined
+    const password = url.password ? decodeURIComponent(url.password) : undefined
+    const useTls = url.protocol === 'rediss:'
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 6379,
+      username: username || (password ? 'default' : undefined),
+      password,
+      tls: useTls ? {} : undefined,
+    }
+  }
+  catch (err) {
+    console.error('Invalid REDIS_URL:', err)
+    return null
+  }
+}
+
+const redisFromUrl = parseRedisUrl()
+const redisBaseConfig = redisFromUrl || {
+  host: REDIS_HOST,
+  port: Number(REDIS_PORT),
+  username: 'default',
+  password: REDIS_PASSWORD,
+  tls: REDIS_TLS ? {} : undefined,
+}
+
 module.exports = {
   // 应用基础
   appDomain: APP_DOMAIN,
@@ -130,30 +187,20 @@ module.exports = {
 
   // 数据库
   mongodb: {
-    uri: `mongodb://${MONGODB_USERNAME}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}:${MONGODB_PORT}/?authSource=admin&directConnection=true`,
+    uri: buildMongoUri(),
     dbName: 'aitoearn',
   },
 
   // 缓存/队列
-  redis: {
-    host: REDIS_HOST,
-    port: Number(REDIS_PORT),
-    username: 'default',
-    password: REDIS_PASSWORD,
-  },
+  redis: redisBaseConfig,
   redlock: {
-    redis: {
-      host: REDIS_HOST,
-      port: Number(REDIS_PORT),
-      username: 'default',
-      password: REDIS_PASSWORD,
-    },
+    redis: redisBaseConfig,
   },
 
   // Channel
   channel: {
     channelDb: {
-      uri: `mongodb://${MONGODB_USERNAME}:${encodeURIComponent(MONGODB_PASSWORD)}@${MONGODB_HOST}:${MONGODB_PORT}/?authSource=admin&directConnection=true`,
+      uri: buildChannelMongoUri(),
       dbName: 'aitoearn_channel',
     },
     moreApi: {
