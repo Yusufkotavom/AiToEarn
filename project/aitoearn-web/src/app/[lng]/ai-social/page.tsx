@@ -5,7 +5,9 @@
 
 import { useTranslation } from '@/app/i18n'
 import { fallbackLng, languages } from '@/app/i18n/settings'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import { getMetadata } from '@/utils/general'
+import { redirect } from 'next/navigation'
 import { AiSocialPageContent } from './AiSocialPageContent'
 
 // SEO 元数据
@@ -32,6 +34,15 @@ export async function generateMetadata({
 }
 
 // 服务端组件 - 默认导出
-export default function AiSocialPage() {
+export default async function AiSocialPage({
+  params,
+}: {
+  params: Promise<{ lng: string }>
+}) {
+  const { lng } = await params
+
+  if (!AI_FEATURE_ENABLED) {
+    redirect(`/${lng}/accounts`)
+  }
   return <AiSocialPageContent />
 }

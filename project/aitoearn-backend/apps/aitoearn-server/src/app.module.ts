@@ -16,6 +16,7 @@ import { ApiKeyModule } from './core/api-key/api-key.module'
 import { AssetsModule } from './core/assets/assets.module'
 import { ChannelModule } from './core/channel/channel.module'
 import { ContentModule } from './core/content/content.module'
+import { DriveExplorerModule } from './core/content/drive-explorer/drive-explorer.module'
 import { CreditsModule } from './core/credits/credits.module'
 import { InternalModule } from './core/internal/internal.module'
 import { NotificationModule } from './core/notification/notification.module'
@@ -52,6 +53,7 @@ import { UserModule } from './core/user/user.module'
     UserModule,
     CreditsModule,
     ContentModule,
+    DriveExplorerModule,
     ChannelModule,
     PublishModule,
     InternalModule,

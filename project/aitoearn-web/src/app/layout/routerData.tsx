@@ -15,6 +15,7 @@ import {
   Sparkles,
   Upload,
   } from 'lucide-react'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 
 export interface IRouterDataItem {
   // 导航标题
@@ -36,18 +37,22 @@ export const routerData: IRouterDataItem[] = [
     path: '/',
     icon: <Home size={20} />,
   },
-  {
-    name: 'AI Publish',
-    translationKey: 'aiSocial',
-    path: '/ai-social',
-    icon: <Sparkles size={20} />,
-  },
-  {
-    name: 'Task History',
-    translationKey: 'tasksHistory',
-    path: '/tasks-history',
-    icon: <History size={20} />,
-  },
+  ...(AI_FEATURE_ENABLED
+    ? [
+        {
+          name: 'AI Publish',
+          translationKey: 'aiSocial',
+          path: '/ai-social',
+          icon: <Sparkles size={20} />,
+        },
+        {
+          name: 'Task History',
+          translationKey: 'tasksHistory',
+          path: '/tasks-history',
+          icon: <History size={20} />,
+        },
+      ]
+    : []),
   {
     name: 'Publish',
     translationKey: 'accounts',

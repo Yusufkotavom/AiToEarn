@@ -15,6 +15,7 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { apiUpdateAccountGroupSortRank } from '@/api/accountSort'
 import { useTransClient } from '@/app/i18n/client'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/lib/toast'
 import { useAccountStore } from '@/store/account'
@@ -186,14 +187,16 @@ const AccountsTopNav = memo<IAccountsTopNavProps>(({ onNewWork, onAddAccount }) 
           <div className="border-l border-border h-6 mx-1 md:mx-2" />
 
           {/* Agent创建按钮 */}
-          <Button
-            variant="outline"
-            onClick={() => router.push('/ai-social')}
-            className="h-8 md:h-9 gap-1 md:gap-2 px-2 md:px-4 cursor-pointer"
-          >
-            <Bot className="h-4 w-4" />
-            <span>{t('agentCreate')}</span>
-          </Button>
+          {AI_FEATURE_ENABLED && (
+            <Button
+              variant="outline"
+              onClick={() => router.push('/ai-social')}
+              className="h-8 md:h-9 gap-1 md:gap-2 px-2 md:px-4 cursor-pointer"
+            >
+              <Bot className="h-4 w-4" />
+              <span>{t('agentCreate')}</span>
+            </Button>
+          )}
         </div>
 
         {/* 右侧: 频道选择器(按空间分组) */}

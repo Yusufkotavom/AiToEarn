@@ -360,11 +360,13 @@ const CalendarTiming = memo(
                         className="h-full overflow-hidden"
                         ref={calendarTimingCalendarRef}
                       >
-                        <PCDayListView
-                          recordMap={recordMap}
-                          loading={listLoading}
-                          onClickPub={date => openNewWork({ date })}
-                        />
+                        <DndProvider backend={HTML5Backend}>
+                          <PCDayListView
+                            recordMap={recordMap}
+                            loading={listLoading}
+                            onClickPub={date => openNewWork({ date })}
+                          />
+                        </DndProvider>
                       </div>
                     ) : (
                       <PCWeekView

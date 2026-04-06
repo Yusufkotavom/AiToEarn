@@ -471,7 +471,7 @@ export function DriveExplorerPageCore() {
 
         try {
           const response = await fetch(
-            `${apiBaseUrl}/ai/drive-explorer/thumbnail?path=${encodeURIComponent(item.path)}`,
+            `${apiBaseUrl}/drive-explorer/thumbnail?path=${encodeURIComponent(item.path)}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,

@@ -17,6 +17,7 @@ import { apiGetMetadataSettings, apiUpdateMetadataSettings } from '@/api/metadat
 import { AccountPlatInfoMap, PlatType } from '@/app/config/platConfig'
 import { PubType } from '@/app/config/publishConfig'
 import { useTransClient } from '@/app/i18n/client'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import MediaPreview from '@/components/common/MediaPreview'
 import BrushEditor from '@/components/common/MediaPreview/BrushEditor'
 import PublishUploadProgress from '@/components/PublishDialog/compoents/PublishManageUpload/PublishUploadProgress'
@@ -205,43 +206,45 @@ const MobileContent = memo(
 
     return (
       <>
-        <MetadataAiSettingsDialog
-          open={settingsOpen}
-          provider={settings.provider}
-          model={draftModel || settings.model}
-          strategy={settings.strategy}
-          promptTemplate={draftPromptTemplate || settings.promptTemplate}
-          onOpenChange={(open) => {
-            setSettingsOpen(open)
-            if (open) {
-              void (async () => {
-                const remote = await apiGetMetadataSettings()
-                if (remote?.code === 0 && remote.data) {
-                  updateSettings(remote.data)
-                }
-              })()
-              setDraftPromptTemplate(settings.promptTemplate)
-              setDraftModel(settings.model || '')
-            }
-          }}
-          onProviderChange={provider => updateSettings({ provider })}
-          onModelChange={setDraftModel}
-          onStrategyChange={strategy => updateSettings({ strategy })}
-          onPromptTemplateChange={setDraftPromptTemplate}
-          onSave={() => {
-            const nextSettings = {
-              promptTemplate: draftPromptTemplate || settings.promptTemplate,
-              model: draftModel || settings.model,
-            }
-            updateSettings(nextSettings)
-            void apiUpdateMetadataSettings({
-              provider: settings.provider,
-              strategy: settings.strategy,
-              ...nextSettings,
-            })
-            setSettingsOpen(false)
-          }}
-        />
+        {AI_FEATURE_ENABLED && (
+          <MetadataAiSettingsDialog
+            open={settingsOpen}
+            provider={settings.provider}
+            model={draftModel || settings.model}
+            strategy={settings.strategy}
+            promptTemplate={draftPromptTemplate || settings.promptTemplate}
+            onOpenChange={(open) => {
+              setSettingsOpen(open)
+              if (open) {
+                void (async () => {
+                  const remote = await apiGetMetadataSettings()
+                  if (remote?.code === 0 && remote.data) {
+                    updateSettings(remote.data)
+                  }
+                })()
+                setDraftPromptTemplate(settings.promptTemplate)
+                setDraftModel(settings.model || '')
+              }
+            }}
+            onProviderChange={provider => updateSettings({ provider })}
+            onModelChange={setDraftModel}
+            onStrategyChange={strategy => updateSettings({ strategy })}
+            onPromptTemplateChange={setDraftPromptTemplate}
+            onSave={() => {
+              const nextSettings = {
+                promptTemplate: draftPromptTemplate || settings.promptTemplate,
+                model: draftModel || settings.model,
+              }
+              updateSettings(nextSettings)
+              void apiUpdateMetadataSettings({
+                provider: settings.provider,
+                strategy: settings.strategy,
+                ...nextSettings,
+              })
+              setSettingsOpen(false)
+            }}
+          />
+        )}
 
         {/* 弹窗层 */}
         <VideoCoverSeting
@@ -496,42 +499,44 @@ const MobileContent = memo(
 
         {/* 底部栏 */}
         <div className="px-4 py-2 border-t border-border shrink-0 space-y-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              disabled={isGeneratingMetadata}
-              onClick={async () => {
-                await generateMetadataByAi(settings)
-              }}
-            >
-              <Sparkles className="mr-1 h-4 w-4" />
-              {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="px-3"
-              onClick={() => {
-                setDraftPromptTemplate(settings.promptTemplate)
-                setSettingsOpen(true)
-              }}
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="px-3"
-              onClick={(e) => {
-                e.stopPropagation()
-                router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
-              }}
-            >
-              <Bot className="h-4 w-4" />
-            </Button>
-          </div>
+          {AI_FEATURE_ENABLED && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={isGeneratingMetadata}
+                onClick={async () => {
+                  await generateMetadataByAi(settings)
+                }}
+              >
+                <Sparkles className="mr-1 h-4 w-4" />
+                {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-3"
+                onClick={() => {
+                  setDraftPromptTemplate(settings.promptTemplate)
+                  setSettingsOpen(true)
+                }}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-3"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
+                }}
+              >
+                <Bot className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <Button
             onClick={handleSubmit}
             disabled={submitting}

@@ -12,6 +12,7 @@ import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { apiGetMetadataSettings, apiUpdateMetadataSettings } from '@/api/metadataGeneration'
 import { PlatType } from '@/app/config/platConfig'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import PubParmasTextarea from '@/components/PublishDialog/compoents/PubParmasTextarea'
 import { Button } from '@/components/ui/button'
 import {
@@ -80,45 +81,100 @@ const CreateMaterialModalContent = memo(
 
     const { warnings, effectiveLimits } = useMaterialValidation(params, params.selectedPlatforms)
 
+    const aiToolbarExtra = AI_FEATURE_ENABLED
+      ? (
+          <>
+            <div className="px-1.5 border-l border-border first:border-l-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  await generateMetadataByAi(settings)
+                }}
+                disabled={isGeneratingMetadata}
+              >
+                <Sparkles className="mr-1 h-4 w-4" />
+                {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
+              </Button>
+            </div>
+
+            <div className="px-1.5 border-l border-border first:border-l-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDraftPromptTemplate(settings.promptTemplate)
+                  setSettingsOpen(true)
+                }}
+              >
+                <Settings2 className="mr-1 h-4 w-4" />
+                {t('createMaterial.metadataAiSettings')}
+              </Button>
+            </div>
+
+            <div className="px-1.5 border-l border-border first:border-l-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
+                }}
+              >
+                <Bot className="mr-1 h-4 w-4" />
+                {t('detail.agentGenerate')}
+              </Button>
+            </div>
+          </>
+        )
+      : null
+
     return (
       <>
-        <MetadataAiSettingsDialog
-          open={settingsOpen}
-          provider={settings.provider}
-          model={draftModel || settings.model}
-          strategy={settings.strategy}
-          promptTemplate={draftPromptTemplate || settings.promptTemplate}
-          onOpenChange={(open) => {
-            setSettingsOpen(open)
-            if (open) {
-              void (async () => {
-                const remote = await apiGetMetadataSettings()
-                if (remote?.code === 0 && remote.data) {
-                  updateSettings(remote.data)
-                }
-              })()
-              setDraftPromptTemplate(settings.promptTemplate)
-              setDraftModel(settings.model || '')
-            }
-          }}
-          onProviderChange={provider => updateSettings({ provider })}
-          onModelChange={setDraftModel}
-          onStrategyChange={strategy => updateSettings({ strategy })}
-          onPromptTemplateChange={setDraftPromptTemplate}
-          onSave={() => {
-            const nextSettings = {
-              promptTemplate: draftPromptTemplate || settings.promptTemplate,
-              model: draftModel || settings.model,
-            }
-            updateSettings(nextSettings)
-            void apiUpdateMetadataSettings({
-              provider: settings.provider,
-              strategy: settings.strategy,
-              ...nextSettings,
-            })
-            setSettingsOpen(false)
-          }}
-        />
+        {AI_FEATURE_ENABLED && (
+          <MetadataAiSettingsDialog
+            open={settingsOpen}
+            provider={settings.provider}
+            model={draftModel || settings.model}
+            strategy={settings.strategy}
+            promptTemplate={draftPromptTemplate || settings.promptTemplate}
+            onOpenChange={(open) => {
+              setSettingsOpen(open)
+              if (open) {
+                void (async () => {
+                  const remote = await apiGetMetadataSettings()
+                  if (remote?.code === 0 && remote.data) {
+                    updateSettings(remote.data)
+                  }
+                })()
+                setDraftPromptTemplate(settings.promptTemplate)
+                setDraftModel(settings.model || '')
+              }
+            }}
+            onProviderChange={provider => updateSettings({ provider })}
+            onModelChange={setDraftModel}
+            onStrategyChange={strategy => updateSettings({ strategy })}
+            onPromptTemplateChange={setDraftPromptTemplate}
+            onSave={() => {
+              const nextSettings = {
+                promptTemplate: draftPromptTemplate || settings.promptTemplate,
+                model: draftModel || settings.model,
+              }
+              updateSettings(nextSettings)
+              void apiUpdateMetadataSettings({
+                provider: settings.provider,
+                strategy: settings.strategy,
+                ...nextSettings,
+              })
+              setSettingsOpen(false)
+            }}
+          />
+        )}
 
         <DialogHeader>
           <DialogTitle>
@@ -168,56 +224,7 @@ const CreateMaterialModalContent = memo(
               onChange={({ value, imgs, video }) => {
                 updateParams({ des: value, images: imgs || [], video })
               }}
-              toolbarExtra={(
-                <>
-                  <div className="px-1.5 border-l border-border first:border-l-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        await generateMetadataByAi(settings)
-                      }}
-                      disabled={isGeneratingMetadata}
-                    >
-                      <Sparkles className="mr-1 h-4 w-4" />
-                      {isGeneratingMetadata ? t('common.loading') : t('createMaterial.generateMetadata')}
-                    </Button>
-                  </div>
-
-                  <div className="px-1.5 border-l border-border first:border-l-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDraftPromptTemplate(settings.promptTemplate)
-                        setSettingsOpen(true)
-                      }}
-                    >
-                      <Settings2 className="mr-1 h-4 w-4" />
-                      {t('createMaterial.metadataAiSettings')}
-                    </Button>
-                  </div>
-
-                  <div className="px-1.5 border-l border-border first:border-l-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="cursor-pointer transition-all hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-blue-500/10"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        router.push(`/ai-social?agentExternalPrompt=${encodeURIComponent(t('detail.agentGeneratePrompt'))}`)
-                      }}
-                    >
-                      <Bot className="mr-1 h-4 w-4" />
-                      {t('detail.agentGenerate')}
-                    </Button>
-                  </div>
-                </>
-              )}
+              toolbarExtra={aiToolbarExtra}
               extend={(
                 <div className="flex items-center h-10">
                   <label className="shrink-0 w-[60px] text-sm">{t('createMaterial.titleLabel')}</label>

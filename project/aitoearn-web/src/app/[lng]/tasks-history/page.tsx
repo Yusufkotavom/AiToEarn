@@ -6,7 +6,9 @@
 import type { Metadata } from 'next'
 import { useTranslation } from '@/app/i18n'
 import { fallbackLng, languages } from '@/app/i18n/settings'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import { getMetadata } from '@/utils/general'
+import { redirect } from 'next/navigation'
 
 import { TasksHistoryPageContent } from './TasksHistoryPageContent'
 
@@ -33,6 +35,14 @@ export async function generateMetadata({
 }
 
 // 默认导出
-export default function TasksHistoryPage() {
+export default async function TasksHistoryPage({
+  params,
+}: {
+  params: Promise<{ lng: string }>
+}) {
+  const { lng } = await params
+  if (!AI_FEATURE_ENABLED) {
+    redirect(`/${lng}/accounts`)
+  }
   return <TasksHistoryPageContent />
 }

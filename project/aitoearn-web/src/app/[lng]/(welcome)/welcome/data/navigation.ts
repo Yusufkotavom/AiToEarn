@@ -3,7 +3,7 @@
  * Welcome 页面的 Navigation 使用
  */
 
-import { DOCS_URL } from '@/app/layout/shared/constants'
+import { AI_FEATURE_ENABLED, DOCS_URL } from '@/app/layout/shared/constants'
 
 export interface NavItem {
   type: 'link'
@@ -14,5 +14,5 @@ export interface NavItem {
 
 export const navigation: NavItem[] = [
   { type: 'link', labelKey: 'docs', href: DOCS_URL, external: true },
-  { type: 'link', labelKey: 'aiSocial', href: '/ai-social' },
+  ...(AI_FEATURE_ENABLED ? [{ type: 'link' as const, labelKey: 'aiSocial', href: '/ai-social' }] : []),
 ]

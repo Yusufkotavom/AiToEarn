@@ -18,6 +18,7 @@ import { usePublishDialog } from '@/components/PublishDialog/usePublishDialog'
 import { useAccountStore } from '@/store/account'
 import { useUserStore } from '@/store/user'
 import { generateUUID } from '@/utils'
+import { AI_FEATURE_ENABLED } from '@/app/layout/shared/constants'
 import { useGenerationPolling } from '../../hooks/useGenerationPolling'
 import AiBatchGenerateBar from '../AiBatchGenerateBar'
 import { useMediaTabStore } from '../ContentTabs/mediaTabStore'
@@ -208,7 +209,7 @@ function DraftContentModule({ showGenerateBar = true }: DraftContentModuleProps)
     <>
       <div className="space-y-6 p-4 md:p-6">
         {/* AI 批量生成输入栏 */}
-        {showGenerateBar && (
+        {showGenerateBar && AI_FEATURE_ENABLED && (
           <AiBatchGenerateBar groupId={selectedPlanId || undefined} />
         )}
         {/* 内容 Tabs：草稿箱 / 视频 / 图片 */}

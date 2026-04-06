@@ -73,7 +73,7 @@ export function apiBrowseDrive(data: {
   pageSize?: number
   mediaType?: DriveMediaType
 }) {
-  return http.post<DriveBrowseResult>('ai/drive-explorer/browse', data)
+  return http.post<DriveBrowseResult>('drive-explorer/browse', data)
 }
 
 export function apiPreviewDriveImport(data: {
@@ -81,7 +81,7 @@ export function apiPreviewDriveImport(data: {
   paths: string[]
   mode?: DriveImportMode
 }) {
-  return http.post<DrivePreviewResult>('ai/drive-explorer/preview', data)
+  return http.post<DrivePreviewResult>('drive-explorer/preview', data)
 }
 
 export function apiCreateDriveImport(data: {
@@ -89,9 +89,9 @@ export function apiCreateDriveImport(data: {
   paths: string[]
   mode?: DriveImportMode
 }) {
-  return http.post<{ jobId: string }>('ai/drive-explorer/import', data)
+  return http.post<{ jobId: string }>('drive-explorer/import', data)
 }
 
 export function apiGetDriveImportStatus(jobId: string) {
-  return http.get<DriveImportStatus>(`ai/drive-explorer/import/${jobId}`)
+  return http.get<DriveImportStatus>(`drive-explorer/import/${jobId}`)
 }
