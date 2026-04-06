@@ -1,0 +1,138 @@
+# Render Blueprint for AiToEarn (no-AI backend)
+# Frontend is assumed to be deployed separately (e.g. Vercel).
+# This only deploys the NestJS backend service.
+
+services:
+  - type: web
+    name: aitoearn-server
+    runtime: docker
+    dockerfilePath: project/aitoearn-backend/apps/aitoearn-server/Dockerfile
+    dockerContext: project/aitoearn-backend
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Core
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: SERVER_APP_NAME
+        value: aitoearn-server
+      - key: APP_DOMAIN
+        value: api.yourdomain.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: INTERNAL_TOKEN
+        generateValue: true
+
+      # MongoDB (Atlas free tier)
+      # Use mongodb+srv://... connection string
+      - key: MONGODB_URI
+        value: "mongodb+srv://USER:PASS@cluster.example.mongodb.net/?retryWrites=true&w=majority"
+      # Optional: separate DB for channel
+      - key: MONGODB_CHANNEL_URI
+        value: ""
+
+      # Redis (Upstash free tier)
+      # Use rediss://default:password@host:port
+      - key: REDIS_URL
+        value: "rediss://default:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT"
+
+      # Assets storage (S3-compatible, e.g. Cloudflare R2)
+      - key: SERVER_ASSETS_CONFIG
+        value: '{"provider":"s3","region":"auto","bucketName":"aitoearn","endpoint":"https://<account>.r2.cloudflarestorage.com","publicEndpoint":"https://<account>.r2.cloudflarestorage.com","cdnEndpoint":"https://<cdn-domain>","accessKeyId":"<access-key>","secretAccessKey":"<secret>","forcePathStyle":true}'
+
+      # Disable AI in frontend (if you still run Next.js elsewhere)
+      - key: NEXT_PUBLIC_DISABLE_AI
+        value: "1"
+
+      # Email (optional)
+      - key: MAIL_HOST
+        value: smtp.resend.com
+      - key: MAIL_PORT
+        value: "465"
+      - key: MAIL_SECURE
+        value: "true"
+      - key: MAIL_FROM
+        value: "AiToEarn <noreply@yourdomain.com>"
+      - key: MAIL_USER
+        value: resend
+      - key: MAIL_PASS
+        value: ""
+
+      # OAuth providers (optional)
+      - key: BILIBILI_CLIENT_ID
+        value: ""
+      - key: BILIBILI_CLIENT_SECRET
+        value: ""
+      - key: GOOGLE_CLIENT_ID
+        value: ""
+      - key: GOOGLE_CLIENT_SECRET
+        value: ""
+      - key: KWAI_CLIENT_ID
+        value: ""
+      - key: KWAI_CLIENT_SECRET
+        value: ""
+      - key: PINTEREST_CLIENT_ID
+        value: ""
+      - key: PINTEREST_CLIENT_SECRET
+        value: ""
+      - key: TIKTOK_CLIENT_ID
+        value: ""
+      - key: TIKTOK_CLIENT_SECRET
+        value: ""
+      - key: TWITTER_CLIENT_ID
+        value: ""
+      - key: TWITTER_CLIENT_SECRET
+        value: ""
+      - key: FACEBOOK_CLIENT_ID
+        value: ""
+      - key: FACEBOOK_CLIENT_SECRET
+        value: ""
+      - key: FACEBOOK_CONFIG_ID
+        value: ""
+      - key: THREADS_CLIENT_ID
+        value: ""
+      - key: THREADS_CLIENT_SECRET
+        value: ""
+      - key: INSTAGRAM_CLIENT_ID
+        value: ""
+      - key: INSTAGRAM_CLIENT_SECRET
+        value: ""
+      - key: LINKEDIN_CLIENT_ID
+        value: ""
+      - key: LINKEDIN_CLIENT_SECRET
+        value: ""
+      - key: YOUTUBE_CLIENT_ID
+        value: ""
+      - key: YOUTUBE_CLIENT_SECRET
+        value: ""
+      - key: WXPLAT_APP_ID
+        value: ""
+      - key: WXPLAT_APP_SECRET
+        value: ""
+      - key: WXPLAT_ENCODING_AES_KEY
+        value: ""
+      - key: DOYIN_CLIENT_ID
+        value: ""
+      - key: DOYIN_CLIENT_SECRET
+        value: ""
+
+      # SMS (optional)
+      - key: ALI_SMS_ACCESS_KEY_ID
+        value: ""
+      - key: ALI_SMS_ACCESS_KEY_SECRET
+        value: ""
+      - key: ALI_SMS_SIGN_NAME
+        value: ""
+      - key: ALI_SMS_TEMPLATE_CODE
+        value: ""
+
+      # Relay (optional)
+      - key: RELAY_SERVER_URL
+        value: "https://aitoearn.ai/api"
+      - key: RELAY_API_KEY
+        value: ""
+      - key: RELAY_CALLBACK_URL
+        value: "https://api.yourdomain.com/api/plat/relay-callback"

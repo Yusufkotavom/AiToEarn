@@ -364,6 +364,17 @@ services:
       NEXT_PUBLIC_DOCS_URL: ${NEXT_PUBLIC_DOCS_URL:-https://docs.aitoearn.ai}
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
 
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: aitoearn-dozzle
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOZZLE_BASE: /system-logs-proxy
+    networks:
+      - aitoearn-network
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     container_name: aitoearn-nginx

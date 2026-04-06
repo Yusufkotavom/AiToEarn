@@ -102,4 +102,10 @@ export const routerData: IRouterDataItem[] = [
     path: '/playwright-batch',
     icon: <Images size={20} />,
   },
+  {
+    name: 'System Logs',
+    translationKey: 'systemLogs',
+    path: '/system-logs',
+    icon: <History size={20} />,
+  },
 ]
